@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comunicador de Moto</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
+        h1 { color: #00adb5; }
+        .btn { display: inline-block; width: 80%; max-width: 300px; padding: 15px; margin: 10px; font-size: 18px; font-weight: bold; border: none; rounded: 8px; border-radius: 8px; cursor: pointer; }
+        .btn-moto { background: #393e46; color: #00adb5; border: 2px solid #00adb5; }
+        .btn-pass { background: #393e46; color: #ff2e63; border: 2px solid #ff2e63; }
+        .btn-talk { background: #00adb5; color: white; width: 150px; height: 150px; border-radius: 50%; font-size: 22px; margin-top: 30px; display: none; box-shadow: 0 0 15px rgba(0,173,181,0.5); }
+        .btn-talk:active { background: #ff2e63; box-shadow: 0 0 25px rgba(255,46,99,0.8); }
+        #status { margin-top: 20px; color: #888; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <h1>🎙️ Intercom Moto</h1>
+    <p>Selecione a sua função no veículo:</p>
+
+    <button class="btn btn-moto" onclick="conectar('motorista')">🏍️ Sou o Motorista</button>
+    <button class="btn btn-pass" onclick="conectar('passageiro')">🎒 Sou o Passageiro</button>
+
+    <br>
+    <button id="talkBtn" class="btn btn-talk">APERTE<br>PARA FALAR</button>
+
+    <div id="status">Aguardando seleção...</div>
+
+    <script>
+        let ws;
+        let mediaRecorder;
+        let papelUsuario = "";
+        // SUBSTITUA ABAIXO PELO SEU LINK DO RENDER (Mantenha o wss://)
+        const SERVER_URL = "https://comunicador-moto.onrender.com"; 
+
+        const statusDiv = document.getElementById("status");
+        const talkBtn = document.getElementById("talkBtn");
+
+        function conectar(papel) {
+            papelUsuario = papel;
+            statusDiv.innerText = `Conectando como ${papel}...`;
+            
+            ws = new WebSocket(SERVER_URL);
+
+            ws.onopen = () => {
+                statusDiv.innerText = `Conectado como ${papel.toUpperCase()}!`;
+                statusDiv.style.color = "#00ff00";
+                // Identifica-se para o servidor
+                ws.send(JSON.stringify({ origem: papelUsuario, tipo: "registro" }));
+                ativarMicrofone();
+            };
+
+            ws.onmessage = async (event) => {
+                if (typeof event.data === "string") return; // Ignora mensagens de texto de registro
+                
+                // Recebe o áudio da outra pessoa e reproduz imediatamente
+                let audioBlob = event.data;
+                let audioUrl = URL.createObjectURL(audioBlob);
+                let audio = new Audio(audioUrl);
+                audio.play();
+            };
+
+            ws.onclose = () => {
+                statusDiv.innerText = "Conexão perdida. Tentando reconectar...";
+                statusDiv.style.color = "#ff0000";
+                talkBtn.style.display = "none";
+                setTimeout(() => conectar(papel), 3000);
+            };
+        }
+
+        async function ativarMicrofone() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                talkBtn.style.display = "inline-block";
+                statusDiv.innerText += " (Microfone Pronto)";
+
+                // Configura o gravador de áudio
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+                        // Envia o pedaço de áudio direto para o servidor
+                        ws.send(event.data);
+                    }
+                };
+
+                // Eventos do botão de falar (segurar para falar)
+                talkBtn.addEventListener("mousedown", iniciarTransmissao);
+                talkBtn.addEventListener("mouseup", pararTransmissao);
+                talkBtn.addEventListener("touchstart", iniciarTransmissao);
+                talkBtn.addEventListener("touchend", pararTransmissao);
+
+            } catch (err) {
+                alert("Erro ao acessar microfone. Permita o acesso nas configurações do navegador.");
+                console.error(err);
+            }
+        }
+
+        function iniciarTransmissao(e) {
+            e.preventDefault();
+            if (mediaRecorder && mediaRecorder.state === "inactive") {
+                // Envia um alerta de texto rápido avisando que vai falar
+                ws.send(JSON.stringify({ origem: papelUsuario, tipo: "fala_iniciada" }));
+                mediaRecorder.start(200); // Grava e envia em pedaços de 200 milissegundos
+            }
+        }
+
+        function pararTransmissao(e) {
+            e.preventDefault();
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+            }
+        }
+    </script>
+</body>
+</html>
