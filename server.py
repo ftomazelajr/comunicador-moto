@@ -5,7 +5,7 @@ import os
 
 usuarios = {"motorista": None, "passageiro": None}
 
-async def gerenciar_conexoes(websocket, path):
+async def gerenciar_conexoes(websocket):
     global usuarios
     try:
         async for msg in websocket:
@@ -16,7 +16,7 @@ async def gerenciar_conexoes(websocket, path):
                 usuarios[tipo_usuario] = websocket
             
             destino = "passageiro" if tipo_usuario == "motorista" else "motorista"
-            if usuarios[destino] and usuarios[destino].open:
+            if usuarios[destino]:
                 await usuarios[destino].send(msg)
     except websockets.exceptions.ConnectionClosed:
         pass
@@ -25,9 +25,10 @@ async def gerenciar_conexoes(websocket, path):
             if ws == websocket:
                 usuarios[papel] = None
 
-porta = int(os.environ.get("PORT", 8765))
-start_server = websockets.serve(gerenciar_conexoes, "0.0.0.0", porta)
+async def main():
+    porta = int(os.environ.get("PORT", 8765))
+    async with websockets.serve(gerenciar_conexoes, "0.0.0.0", porta):
+        await asyncio.Future()  # Mantém o servidor rodando para sempre
 
-asyncio.get_event_loop().run_until_complete(start_server)
-asyncio.get_event_loop().run_forever()
-
+if __name__ == "__main__":
+    asyncio.run(main())
