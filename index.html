@@ -3,114 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comunicador de Moto</title>
+    <title>Comunicador de Moto (Voz/Texto)</title>
     <style>
         body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
         h1 { color: #00adb5; }
-        .btn { display: inline-block; width: 80%; max-width: 300px; padding: 15px; margin: 10px; font-size: 18px; font-weight: bold; border: none; rounded: 8px; border-radius: 8px; cursor: pointer; }
+        .btn { display: inline-block; width: 80%; max-width: 300px; padding: 15px; margin: 10px; font-size: 18px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; }
         .btn-moto { background: #393e46; color: #00adb5; border: 2px solid #00adb5; }
         .btn-pass { background: #393e46; color: #ff2e63; border: 2px solid #ff2e63; }
-        .btn-talk { background: #00adb5; color: white; width: 150px; height: 150px; border-radius: 50%; font-size: 22px; margin-top: 30px; display: none; box-shadow: 0 0 15px rgba(0,173,181,0.5); }
-        .btn-talk:active { background: #ff2e63; box-shadow: 0 0 25px rgba(255,46,99,0.8); }
+        
+        /* Painéis específicos */
+        .painel { display: none; margin-top: 30px; padding: 20px; background: #222831; border-radius: 10px; }
+        
+        /* Estilo Motorista */
+        .btn-talk { background: #00adb5; color: white; width: 150px; height: 150px; border-radius: 50%; font-size: 22px; border: none; box-shadow: 0 0 15px rgba(0,173,181,0.5); cursor: pointer; }
+        .btn-talk.gravando { background: #ff2e63; box-shadow: 0 0 25px rgba(255,46,99,0.8); }
+        
+        /* Estilo Passageiro */
+        #txtMensagem { width: 80%; max-width: 400px; padding: 15px; font-size: 18px; border-radius: 8px; border: none; margin-bottom: 10px; }
+        #btnEnviar { background: #ff2e63; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 8px; font-weight: bold; }
+        
         #status { margin-top: 20px; color: #888; font-style: italic; }
+        #chat { margin-top: 20px; font-size: 24px; font-weight: bold; color: #eeeeee; padding: 10px; background: #393e46; border-radius: 8px; min-height: 50px; }
     </style>
 </head>
 <body>
 
-    <h1>🎙️ Intercom Moto</h1>
-    <p>Selecione a sua função no veículo:</p>
+    <h1>🎙️ Intercom Moto (Voz ↔ Texto)</h1>
+    <div id="status">Selecione a sua função:</div>
 
-    <button class="btn btn-moto" onclick="conectar('motorista')">🏍️ Sou o Motorista</button>
-    <button class="btn btn-pass" onclick="conectar('passageiro')">🎒 Sou o Passageiro</button>
+    <div id="selecao">
+        <button class="btn btn-moto" onclick="conectar('motorista')">🏍️ Sou o Motorista</button>
+        <button class="btn btn-pass" onclick="conectar('passageiro')">🎒 Sou o Passageiro</button>
+    </div>
 
-    <br>
-    <button id="talkBtn" class="btn btn-talk">APERTE<br>PARA FALAR</button>
+    <div id="painel-motorista" class="painel">
+        <p>Segure para falar com o passageiro:</p>
+        <button id="talkBtn" class="btn btn-talk">FALAR</button>
+        <p style="color: #888; margin-top: 15px;">O que o passageiro digitar vai tocar no seu fone.</p>
+    </div>
 
-    <div id="status">Aguardando seleção...</div>
+    <div id="painel-passageiro" class="painel">
+        <div id="chat">Aguardando fala do motorista...</div>
+        <br><br>
+        <input type="text" id="txtMensagem" placeholder="Digite para o motorista ouvir...">
+        <br>
+        <button id="btnEnviar" onclick="enviarTexto()">📩 Enviar para o Fone</button>
+    </div>
 
     <script>
         let ws;
-        let mediaRecorder;
         let papelUsuario = "";
-        // SUBSTITUA ABAIXO PELO SEU LINK DO RENDER (Mantenha o wss://)
         const SERVER_URL = "wss://comunicador-moto.onrender.com"; 
 
         const statusDiv = document.getElementById("status");
+        const selecaoDiv = document.getElementById("selecao");
         const talkBtn = document.getElementById("talkBtn");
+        const chatDiv = document.getElementById("chat");
+
+        // Configuração do Reconhecimento de Voz (Nativo do Celular)
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'pt-BR';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onresult = (event) => {
+                const textoFalado = event.results[0][0].transcript;
+                statusDiv.innerText = "Enviando texto...";
+                // Envia o texto reconhecido para o servidor
+                ws.send(JSON.stringify({ origem: papelUsuario, texto: textoFalado }));
+            };
+
+            recognition.onend = () => {
+                talkBtn.classList.remove("gravando");
+                talkBtn.innerText = "FALAR";
+            };
+        }
 
         function conectar(papel) {
             papelUsuario = papel;
-            statusDiv.innerText = `Conectando como ${papel}...`;
+            statusDiv.innerText = `Conectando ao servidor...`;
             
             ws = new WebSocket(SERVER_URL);
 
             ws.onopen = () => {
-                statusDiv.innerText = `Conectado como ${papel.toUpperCase()}!`;
+                statusDiv.innerText = `Conectado com sucesso!`;
                 statusDiv.style.color = "#00ff00";
-                // Identifica-se para o servidor
-                ws.send(JSON.stringify({ origem: papelUsuario, tipo: "registro" }));
-                ativarMicrofone();
+                selecaoDiv.style.display = "none";
+                
+                // Abre o painel certo baseado na escolha
+                if (papel === 'motorista') {
+                    document.getElementById("painel-motorista").style.display = "block";
+                    configurarBotaoMotorista();
+                } else {
+                    document.getElementById("painel-passageiro").style.display = "block";
+                }
+                
+                // Registro inicial no servidor
+                ws.send(JSON.stringify({ origem: papel, tipo: "registro" }));
             };
 
-            ws.onmessage = async (event) => {
-                if (typeof event.data === "string") return; // Ignora mensagens de texto de registro
+            ws.onmessage = (event) => {
+                const dados = JSON.parse(event.data);
                 
-                // Recebe o áudio da outra pessoa e reproduz imediatamente
-                let audioBlob = event.data;
-                let audioUrl = URL.createObjectURL(audioBlob);
-                let audio = new Audio(audioUrl);
-                audio.play();
+                if (papelUsuario === "passageiro" && dados.texto) {
+                    // O Passageiro LÊ na tela o que o motorista falou
+                    chatDiv.innerText = "🏍️ Motorista: " + dados.texto;
+                } 
+                
+                if (papelUsuario === "motorista" && dados.texto) {
+                    // O Motorista OUVE no fone o que o passageiro digitou
+                    falarNoFone(dados.texto);
+                }
             };
 
             ws.onclose = () => {
-                statusDiv.innerText = "Conexão perdida. Tentando reconectar...";
+                statusDiv.innerText = "Conexão perdida. Reconectando...";
                 statusDiv.style.color = "#ff0000";
-                talkBtn.style.display = "none";
                 setTimeout(() => conectar(papel), 3000);
             };
         }
 
-        async function ativarMicrofone() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                talkBtn.style.display = "inline-block";
-                statusDiv.innerText += " (Microfone Pronto)";
+        // AÇÃO DO MOTORISTA (Captura a voz e transforma em texto)
+        function configurarBotaoMotorista() {
+            if (!recognition) {
+                alert("Seu navegador não suporta reconhecimento de voz. Use o Safari no iPhone ou Chrome no Android.");
+                return;
+            }
 
-                // Configura o gravador de áudio
-                mediaRecorder = new MediaRecorder(stream);
-                
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-                        // Envia o pedaço de áudio direto para o servidor
-                        ws.send(event.data);
-                    }
-                };
+            const ligarGravacao = (e) => {
+                e.preventDefault();
+                talkBtn.classList.add("gravando");
+                talkBtn.innerText = "OUVINDO...";
+                recognition.start();
+            };
 
-                // Eventos do botão de falar (segurar para falar)
-                talkBtn.addEventListener("mousedown", iniciarTransmissao);
-                talkBtn.addEventListener("mouseup", pararTransmissao);
-                talkBtn.addEventListener("touchstart", iniciarTransmissao);
-                talkBtn.addEventListener("touchend", pararTransmissao);
+            talkBtn.addEventListener("mousedown", ligarGravacao);
+            talkBtn.addEventListener("touchstart", ligarGravacao);
+        }
 
-            } catch (err) {
-                alert("Erro ao acessar microfone. Permita o acesso nas configurações do navegador.");
-                console.error(err);
+        // AÇÃO DO PASSAGEIRO (Envia o texto digitado)
+        function enviarTexto() {
+            const campo = document.getElementById("txtMensagem");
+            const texto = campo.value.trim();
+            if (texto && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ origem: papelUsuario, texto: texto }));
+                campo.value = "";
+                statusDiv.innerText = "Texto enviado para o fone do piloto!";
             }
         }
 
-        function iniciarTransmissao(e) {
-            e.preventDefault();
-            if (mediaRecorder && mediaRecorder.state === "inactive") {
-                // Envia um alerta de texto rápido avisando que vai falar
-                ws.send(JSON.stringify({ origem: papelUsuario, tipo: "fala_iniciada" }));
-                mediaRecorder.start(200); // Grava e envia em pedaços de 200 milissegundos
-            }
-        }
-
-        function pararTransmissao(e) {
-            e.preventDefault();
-            if (mediaRecorder && mediaRecorder.state === "recording") {
-                mediaRecorder.stop();
+        // SÍNTESE DE VOZ (Faz o fone do motorista falar o texto)
+        function falarNoFone(texto) {
+            if ('speechSynthesis' in window) {
+                const foneExpressao = new SpeechSynthesisUtterance(texto);
+                foneExpressao.lang = 'pt-BR';
+                foneExpressao.rate = 1.1; // Velocidade da voz um pouquinho mais rápida para a moto
+                window.speechSynthesis.speak(foneExpressao);
             }
         }
     </script>
