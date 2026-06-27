@@ -52,7 +52,7 @@
     <div id="painel-motorista" class="painel">
         <p style="font-size: 18px;">Mãos no guidão! Diga bem alto:</p>
         <h2 style="color: #ff2e63; font-size: 32px; margin: 10px 0;">"AVISO"</h2>
-        <button id="talkBtn" class="btn btn-talk">MODO<br>SENTINELA</button>
+        <button id="talkBtn" class="btn btn-talk" onclick="alternarSentinelaManualmente()">LIGAR<br>SENTINELA</button>
         <p style="color: #888; margin-top: 20px; font-size: 15px;">O sistema fica em silêncio. Ele só dará um BIPE quando escutar a palavra exata "AVISO".</p>
     </div>
 
@@ -85,10 +85,12 @@
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition;
         let tempoJanelaFala = null;
+        let audioCtxGlobal = null;
+        let sentinelaAtivo = false;
         
         function tocarBip(tipo) {
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const audioCtx = audioCtxGlobal || new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
                 
@@ -113,6 +115,22 @@
             }
         }
 
+        function ativarAudioSegundoPlano() {
+            try {
+                audioCtxGlobal = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtxGlobal.createOscillator();
+                const gainNode = audioCtxGlobal.createGain();
+                oscillator.type = "sine";
+                oscillator.frequency.setValueAtTime(1, audioCtxGlobal.currentTime);
+                gainNode.gain.setValueAtTime(0.001, audioCtxGlobal.currentTime); 
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtxGlobal.destination);
+                oscillator.start();
+            } catch(e) {
+                console.log("Erro áudio fundo:", e);
+            }
+        }
+
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
             recognition.lang = 'pt-BR';
@@ -120,12 +138,10 @@
             recognition.interimResults = false;
 
             recognition.onresult = (event) => {
-                // Pega o índice atual do resultado processado para evitar lixo acumulado
                 const indiceAtual = event.resultIndex;
                 const fraseCompleta = event.results[indiceAtual][0].transcript.toLowerCase().trim();
                 const palavras = fraseCompleta.split(' ');
                 
-                // CORREÇÃO MÃOS-LIVRES: Verifica o comando de ativação
                 if (palavras.includes("aviso")) {
                     if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
                     
@@ -145,7 +161,6 @@
                     }, 6000);
                     
                 } else if (talkBtn.classList.contains("gravando")) {
-                    // Transmite o trecho de voz atual diretamente via WebSocket enquanto estiver no tempo de janela ativo
                     if (ws && ws.readyState === WebSocket.OPEN) {
                         ws.send(JSON.stringify({ origem: papelUsuario, texto: fraseCompleta }));
                     }
@@ -153,20 +168,35 @@
             };
 
             recognition.onerror = (event) => {
-                console.log("Silêncio ou timeout ignorado para manter estabilidade:", event.error);
+                console.log("Timeout/Silêncio:", event.error);
             };
 
             recognition.onend = () => {
-                if (papelUsuario === 'motorista') {
+                if (papelUsuario === 'motorista' && sentinelaAtivo) {
                     setTimeout(() => {
-                        try {
-                            recognition.start();
-                        } catch(e) {
-                            console.log("Tentativa de reinício tratada");
-                        }
+                        try { recognition.start(); } catch(e) {}
                     }, 400);
                 }
             };
+        }
+
+        // Nova ação vinculada ao clique físico do piloto para destravar o microfone no APK
+        function alternarSentinelaManualmente() {
+            if (!recognition) return;
+            ativarAudioSegundoPlano();
+            
+            if (!sentinelaAtivo) {
+                sentinelaAtivo = true;
+                try {
+                    recognition.start();
+                    talkBtn.innerHTML = "MODO<br>SENTINELA";
+                    talkBtn.style.borderColor = "#00adb5";
+                    talkBtn.style.color = "#00adb5";
+                    statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
+                } catch(e) {
+                    console.log(e);
+                }
+            }
         }
 
         function conectar(papel) {
@@ -182,16 +212,7 @@
                 
                 if (papel === 'motorista') {
                     document.getElementById("painel-motorista").style.display = "block";
-                    if (recognition) {
-                        try {
-                            recognition.start();
-                        } catch(e) {
-                            console.log("Já iniciado");
-                        }
-                        statusDiv.innerText = "Pronto. Diga 'AVISO' para falar.";
-                    } else {
-                        alert("Este navegador não suporta activação por voz. Tente o Safari no iPhone.");
-                    }
+                    statusDiv.innerText = "Clique abaixo para ligar o microfone.";
                 } else {
                     document.getElementById("painel-passageiro").style.display = "block";
                 }
@@ -201,14 +222,12 @@
 
             ws.onmessage = (event) => {
                 const dados = JSON.parse(event.data);
-                
                 if (papelUsuario === "passageiro" && dados.texto) {
                     chatDiv.innerText = dados.texto;
                     chatDiv.classList.add("flash-alerta");
                     setTimeout(() => { chatDiv.classList.remove("flash-alerta"); }, 600);
                     if (navigator.vibrate) navigator.vibrate(300);
                 } 
-                
                 if (papelUsuario === "motorista" && dados.texto) {
                     falarNoFone(dados.texto);
                 }
