@@ -1,0 +1,6 @@
+[
+	{
+		"pkg": "@capacitor/background-runner",
+		"classpath": "io.ionic.backgroundrunner.plugin.BackgroundRunnerPlugin"
+	}
+]
