@@ -10,15 +10,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: set up JDK 21
+    - name: set up JDK 17
       uses: actions/setup-java@v4
       with:
-        java-version: '21'
+        java-version: '17'
         distribution: 'zulu'
 
-    - name: Install Node and Capacitor
+    - name: Install Dependencies
       run: |
         npm install
+        npm uninstall @capacitor/background-runner || true
         npm install @capacitor/core @capacitor/cli @capacitor/android
 
     - name: Create Structure and Config
