@@ -16,14 +16,19 @@ jobs:
         java-version: '17'
         distribution: 'zulu'
 
-    - name: Install Dependencies
+    - name: Install Node and Packages
       run: |
         npm install
-        mkdir -p www
-        cp index.html www/ 2>/dev/null || cp www/index.html .github/ 2>/dev/null || true
+        npm install @capacitor/core @capacitor/cli @capacitor/android
 
-    - name: Sync Capacitor
-      run: npx cap sync android
+    - name: Build Android Project From Scratch
+      run: |
+        npx cap add android || true
+        npx cap sync android
+
+    - name: Inject Permissions
+      run: |
+        sed -i '/<application/i \    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />' android/app/src/main/AndroidManifest.xml
 
     - name: Build with Gradle
       run: |
