@@ -10,25 +10,24 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
     - name: set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'zulu'
 
-    - name: Install Dependencies
+    - name: Install Node and Capacitor
       run: |
         npm install
         npm install @capacitor/core @capacitor/cli @capacitor/android
+
+    - name: Create Structure and Config
+      run: |
         mkdir -p www
         cp index.html www/ 2>/dev/null || cp www/index.html .github/ 2>/dev/null || true
+        echo '{"appId": "com.intercom.moto", "appName": "IntercomMoto", "webDir": "www", "bundledWebRuntime": false}' > capacitor.config.json
 
-    - name: Build Android Project From Scratch
+    - name: Build Android Project
       run: |
         npx cap add android || true
         npx cap sync android
@@ -48,3 +47,4 @@ jobs:
       with:
         name: app-release
         path: android/app/build/outputs/apk/debug/app-debug.apk
+
