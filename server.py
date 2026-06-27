@@ -2,8 +2,15 @@ import asyncio
 import websockets
 import json
 import os
+import http
 
 usuarios = {"motorista": None, "passageiro": None}
+
+# Função para o Render saber que o servidor está vivo via HTTP comum
+async def health_check(path, request_headers):
+    if path == "/":
+        return http.HTTPStatus.OK, [("Content-Type", "text/plain")], b"OK"
+    return None
 
 async def gerenciar_conexoes(websocket):
     global usuarios
@@ -26,9 +33,12 @@ async def gerenciar_conexoes(websocket):
                 usuarios[papel] = None
 
 async def main():
+    # O Render injeta a porta automaticamente aqui
     porta = int(os.environ.get("PORT", 8765))
-    async with websockets.serve(gerenciar_conexoes, "0.0.0.0", porta):
-        await asyncio.Future()  # Mantém o servidor rodando para sempre
+    
+    # Iniciamos o servidor escutando na porta correta com o validador de saúde ativo
+    async with websockets.serve(gerenciar_conexoes, "0.0.0.0", porta, process_request=health_check):
+        await asyncio.Future()
 
 if __name__ == "__main__":
     asyncio.run(main())
