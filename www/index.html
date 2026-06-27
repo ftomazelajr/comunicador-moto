@@ -3,233 +3,184 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intercom Moto Mãos-Livres v4</title>
+    <title>Intercom Moto</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 15px; margin: 0; }
-        h1 { color: #00adb5; font-size: 26px; margin-bottom: 5px; }
-        
-        .btn { display: inline-block; width: 90%; max-width: 320px; padding: 18px; margin: 10px 0; font-size: 20px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; }
-        .btn-moto { background: #393e46; color: #00adb5; border: 3px solid #00adb5; }
-        .btn-pass { background: #393e46; color: #ff2e63; border: 2px solid #ff2e63; }
-        
-        .painel { display: none; margin-top: 15px; padding: 15px; background: #222831; border-radius: 12px; }
-        
-        /* Estilo Piloto Activação por Voz */
-        .btn-talk { background: #393e46; color: #888; width: 180px; height: 180px; border-radius: 50%; font-size: 22px; border: 4px dashed #555; margin-top: 20px; font-weight: bold; }
-        .btn-talk.gravando { background: #ff2e63; color: white; border: 4px solid #ff2e63; box-shadow: 0 0 30px rgba(255,46,99,0.8); animation: pulse 1.5s infinite; }
-        
-        /* Grid de Atalhos do Passageiro */
-        .grid-atalhos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
-        .btn-fast { background: #393e46; color: #eeeeee; border: 2px solid #555; padding: 20px 10px; font-size: 18px; font-weight: bold; border-radius: 12px; cursor: pointer; height: 90px; display: flex; align-items: center; justify-content: center; }
-        .btn-fast:active { background: #ff2e63; border-color: #ff2e63; }
-        .danger { border-color: #ff2e63; color: #ff2e63; }
-        
-        #txtMensagem { width: 85%; padding: 15px; font-size: 18px; border-radius: 8px; border: none; margin-top: 20px; background: #393e46; color: white; }
-        #btnEnviar { background: #00adb5; color: white; border: none; padding: 15px; font-size: 18px; border-radius: 8px; font-weight: bold; width: 85%; margin-top: 10px; }
-        
-        #status { margin-top: 15px; color: #aa5; font-style: italic; font-weight: bold; font-size: 18px; }
-        #chat { margin-top: 10px; font-size: 28px; font-weight: bold; color: #00adb5; padding: 15px; background: #393e46; border-radius: 12px; min-height: 60px; border-left: 6px solid #00adb5; text-align: left; transition: background 0.2s ease; }
-        
-        .flash-alerta { background: #ff2e63 !important; color: white !important; }
-
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255,46,99,0.7); }
-            70% { box-shadow: 0 0 0 20px rgba(255,46,99,0); }
-            100% { box-shadow: 0 0 0 0 rgba(255,46,99,0); }
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #121212;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            text-align: center;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            padding-top: 50px;
+        }
+        h1 {
+            color: #00e676;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .status-box {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 2px solid #333;
+        }
+        .status-text {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ffb300;
+        }
+        .active {
+            color: #00e676 !important;
+        }
+        .pulse {
+            width: 20px;
+            height: 20px;
+            background: #ffb300;
+            border-radius: 50%;
+            margin: 15px auto;
+            animation: blink 1.5s infinite;
+        }
+        .pulse.listening {
+            background: #00e676;
+        }
+        @keyframes blink {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+        .log-box {
+            background: #000;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: left;
+            font-size: 14px;
+            height: 150px;
+            overflow-y: auto;
         }
     </style>
 </head>
 <body>
 
-    <h1>🎙️ Intercom Moto</h1>
-    <div id="status">Escolha a sua função:</div>
+    <div class="container">
+        <h1>🎙️ Intercomunicador Moto</h1>
+        <p>Mantenha o app aberto e fale "AVISO" para alertar o passageiro.</p>
 
-    <div id="selecao">
-        <button class="btn btn-moto" onclick="conectar('motorista')">🏍️ Sou o Motorista</button>
-        <button class="btn btn-pass" onclick="conectar('passageiro')">🎒 Sou o Passageiro</button>
-    </div>
-
-    <div id="painel-motorista" class="painel">
-        <p style="font-size: 18px;">Mãos no guidão! Diga bem alto:</p>
-        <h2 style="color: #ff2e63; font-size: 32px; margin: 10px 0;">"AVISO"</h2>
-        <button id="talkBtn" class="btn btn-talk">MODO<br>SENTINELA</button>
-        <p style="color: #888; margin-top: 20px; font-size: 15px;">O sistema fica em silêncio. Ele só dará um BIPE quando escutar a palavra exata "AVISO".</p>
-    </div>
-
-    <div id="painel-passageiro" class="painel">
-        <div id="chat">Aguardando o piloto...</div>
-        
-        <div class="grid-atalhos">
-            <button class="btn-fast danger" onclick="enviarFrasePronta('Cuidado! Perigo à frente!')">⚠️ CUIDADO!</button>
-            <button class="btn-fast" onclick="enviarFrasePronta('Devagar, abranda um pouco.')">🛑 VAI DEVAGAR</button>
-            <button class="btn-fast" onclick="enviarFrasePronta('Para a moto assim que puderes.')">🏍️ PARA A MOTO</button>
-            <button class="btn-fast" onclick="enviarFrasePronta('Preciso de ir à casa de banho.')">🚾 BANHO</button>
-            <button class="btn-fast" onclick="enviarFrasePronta('Quero parar numa área de serviço.')">⛽ PARAGEM / POSTO</button>
-            <button class="btn-fast" onclick="enviarFrasePronta('Tudo certo por aqui, podes acelerar!')">👍 TUDO CERTO</button>
+        <div class="status-box">
+            <div id="statusPulse" class="pulse"></div>
+            <div id="statusLabel" class="status-text">Iniciando sistema...</div>
         </div>
 
-        <input type="text" id="txtMensagem" placeholder="Ou digite outra mensagem...">
-        <button id="btnEnviar" onclick="enviarTexto()">📩 Enviar Texto Livre</button>
+        <h3>Histórico de Escuta:</h3>
+        <div id="logBox" class="log-box">Aguardando áudio...<br></div>
     </div>
 
     <script>
-        let ws;
-        let papelUsuario = "";
-        const SERVER_URL = "wss://comunicador-moto.onrender.com"; 
+        const statusLabel = document.getElementById('statusLabel');
+        const statusPulse = document.getElementById('statusPulse');
+        const logBox = document.getElementById('logBox');
 
-        const statusDiv = document.getElementById("status");
-        const selecaoDiv = document.getElementById("selecao");
-        const talkBtn = document.getElementById("talkBtn");
-        const chatDiv = document.getElementById("chat");
+        function addLog(text) {
+            logBox.innerHTML += `> ${text}<br>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
 
+        // Configuração do Reconhecimento de Voz Nativo do Navegador (Web View)
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        let recognition;
-        let tempoJanelaFala = null;
         
-        function tocarBip(tipo) {
-            try {
+        if (!SpeechRecognition) {
+            statusLabel.innerText = "Erro: Aparelho não suporta reconhecimento de voz.";
+            statusLabel.style.color = "#ff1744";
+            addLog("Erro crítico: WebSpeech não suportado.");
+        } else {
+            const recognition = new SpeechRecognition();
+            
+            // Força o modo contínuo para não desligar sozinho
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = 'pt-BR';
+
+            // Quando a escuta começa de verdade
+            recognition.onstart = function() {
+                statusLabel.innerText = "Escutando estrada (Diga: AVISO)";
+                statusLabel.className = "status-text active";
+                statusPulse.className = "pulse listening";
+                addLog("Microfone ativado. Escutando...");
+            };
+
+            // Se der qualquer erro (como timeout ou falta de fala)
+            recognition.onerror = function(event) {
+                console.error("Erro no reconhecimento:", event.error);
+                addLog(`Aviso de sistema: ${event.error}`);
+            };
+
+            // O SEGREDO DO LOOP: Se o Android derrubar ou pausar, força a reinicialização imediata
+            recognition.onend = function() {
+                statusLabel.innerText = "Reconectando escuta...";
+                statusLabel.className = "status-text";
+                statusPulse.className = "pulse";
+                addLog("Escuta encerrada pelo sistema. Reiniciando...");
+                
+                // Tenta reiniciar após meio segundo para evitar travamento
+                setTimeout(() => {
+                    try {
+                        recognition.start();
+                    } catch(e) {
+                        addLog("Erro ao forçar reinício automático.");
+                    }
+                }, 500);
+            };
+
+            // Processa o que foi falado
+            recognition.onresult = function(event) {
+                const currentResultIndex = event.resultIndex;
+                const textoFalado = event.results[currentResultIndex][0].transcript.trim().toLowerCase();
+                
+                addLog(`Escutado: "${textoFalado}"`);
+
+                // Verifica se a palavra "aviso" está no meio do que foi dito
+                if (textoFalado.includes('aviso')) {
+                    addLog("🚨 COMANDO DETECTADO: Disparando Alerta!");
+                    alertarPassageiro();
+                }
+            };
+
+            // Função para disparar a ação do alerta (Áudio ou Vibração)
+            function alertarPassageiro() {
+                // Emite um bipe nativo usando a API de áudio do celular
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
-                
+
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // Tom mais agudo/alerta
+                gainNode.gain.setValueAtTime(1, audioCtx.currentTime); // Volume máximo
+
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
                 
-                if (tipo === "inicio") {
-                    oscillator.type = "sine";
-                    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
-                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                    oscillator.start();
-                    oscillator.stop(audioCtx.currentTime + 0.15);
-                } else if (tipo === "fim") {
-                    oscillator.type = "sine";
-                    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); 
-                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                    oscillator.start();
-                    oscillator.stop(audioCtx.currentTime + 0.2);
+                // Toca um bipe duplo forte
+                oscillator.start();
+                setTimeout(() => { oscillator.stop(); }, 400);
+
+                // Faz o celular vibrar fisicamente por 1 segundo (se permitido)
+                if (navigator.vibrate) {
+                    navigator.vibrate([400, 200, 400]);
                 }
-            } catch (e) {
-                console.log("Erro de áudio: ", e);
             }
-        }
 
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.lang = 'pt-BR';
-            recognition.continuous = true;
-            recognition.interimResults = false;
-
-            recognition.onresult = (event) => {
-                const fraseCompleta = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-                const palavras = fraseCompleta.split(' ');
-                
-                // CORREÇÃO: Só executa e faz barulho se a palavra exata "aviso" for dita
-                if (palavras.includes("aviso")) {
-                    if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
-                    
-                    tocarBip("inicio"); // O bipe de início SÓ toca aqui agora!
-                    
-                    talkBtn.classList.add("gravando");
-                    talkBtn.innerHTML = "🎤 FALANDO...";
-                    statusDiv.innerText = "Transmissão ativa! Fale agora...";
-                    
-                    if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
-
-                    // Janela aberta por 6 segundos para capturar sua fala
-                    tempoJanelaFala = setTimeout(() => {
-                        tocarBip("fim"); 
-                        talkBtn.classList.remove("gravando");
-                        talkBtn.innerHTML = "MODO<br>SENTINELA";
-                        statusDiv.innerText = "Diga 'AVISO' para falar.";
-                    }, 6000);
-                    
-                } else if (talkBtn.classList.contains("gravando")) {
-                    // Se você já falou "AVISO" e o botão está vermelho, ele transmite o resto
-                    ws.send(JSON.stringify({ origem: papelUsuario, texto: fraseCompleta }));
-                }
-            };
-
-            recognition.onerror = () => {
-                setTimeout(() => { if(papelUsuario === 'motorista') recognition.start(); }, 1000);
-            };
-
-            recognition.onend = () => {
-                if (papelUsuario === 'motorista') recognition.start();
-            };
-        }
-
-        function conectar(papel) {
-            papelUsuario = papel;
-            statusDiv.innerText = `A ligar ao servidor...`;
-            
-            ws = new WebSocket(SERVER_URL);
-
-            ws.onopen = () => {
-                statusDiv.innerText = `Ligado com sucesso!`;
-                statusDiv.style.color = "#00ff00";
-                selecaoDiv.style.display = "none";
-                
-                if (papel === 'motorista') {
-                    document.getElementById("painel-motorista").style.display = "block";
-                    if (recognition) {
-                        recognition.start();
-                        statusDiv.innerText = "Pronto. Diga 'AVISO' para falar.";
-                    } else {
-                        alert("Este navegador não suporta activação por voz. Tente o Safari no iPhone.");
-                    }
-                } else {
-                    document.getElementById("painel-passageiro").style.display = "block";
-                }
-                
-                ws.send(JSON.stringify({ origem: papel, tipo: "registro" }));
-            };
-
-            ws.onmessage = (event) => {
-                const dados = JSON.parse(event.data);
-                
-                if (papelUsuario === "passageiro" && dados.texto) {
-                    chatDiv.innerText = dados.texto;
-                    chatDiv.classList.add("flash-alerta");
-                    setTimeout(() => { chatDiv.classList.remove("flash-alerta"); }, 600);
-                    if (navigator.vibrate) navigator.vibrate(300);
-                } 
-                
-                if (papelUsuario === "motorista" && dados.texto) {
-                    falarNoFone(dados.texto);
-                }
-            };
-
-            ws.onclose = () => {
-                statusDiv.innerText = "Sinal perdido. A tentar ligar...";
-                statusDiv.style.color = "#ff0000";
-                setTimeout(() => conectar(papel), 2000);
-            };
-        }
-
-        function enviarFrasePronta(frase) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ origem: papelUsuario, texto: frase }));
-                statusDiv.innerText = "Alerta enviado!";
-                setTimeout(() => { statusDiv.innerText = "Ligado como PASSAGEIRO"; }, 1500);
-            }
-        }
-
-        function enviarTexto() {
-            const campo = document.getElementById("txtMensagem");
-            const texto = campo.value.trim();
-            if (texto && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ origem: papelUsuario, texto: texto }));
-                campo.value = "";
-            }
-        }
-
-        function falarNoFone(texto) {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const foneExpressao = new SpeechSynthesisUtterance(texto);
-                foneExpressao.lang = 'pt-BR';
-                foneExpressao.rate = 1.25; 
-                window.speechSynthesis.speak(foneExpressao);
+            // Inicializa a primeira execução ao abrir o app
+            try {
+                recognition.start();
+            } catch(e) {
+                addLog("Erro na inicialização manual.");
             }
         }
     </script>
