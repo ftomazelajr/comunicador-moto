@@ -3,22 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intercom Moto v2</title>
+    <title>Intercom Moto Mãos-Livres</title>
     <style>
         body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 15px; margin: 0; }
         h1 { color: #00adb5; font-size: 26px; margin-bottom: 5px; }
         
         .btn { display: inline-block; width: 90%; max-width: 320px; padding: 18px; margin: 10px 0; font-size: 20px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; }
         .btn-moto { background: #393e46; color: #00adb5; border: 3px solid #00adb5; }
-        .btn-pass { background: #393e46; color: #ff2e63; border: 3px solid #ff2e63; }
+        .btn-pass { background: #393e46; color: #ff2e63; border: 2px solid #ff2e63; }
         
         .painel { display: none; margin-top: 15px; padding: 15px; background: #222831; border-radius: 12px; }
         
-        /* Estilo Piloto */
-        .btn-talk { background: #00adb5; color: white; width: 180px; height: 180px; border-radius: 50%; font-size: 26px; border: none; box-shadow: 0 0 20px rgba(0,173,181,0.5); cursor: pointer; font-weight: bold; margin-top: 20px; }
-        .btn-talk.gravando { background: #ff2e63; box-shadow: 0 0 30px rgba(255,46,99,0.8); }
+        /* Estilo Piloto Activação por Voz */
+        .btn-talk { background: #393e46; color: #888; width: 180px; height: 180px; border-radius: 50%; font-size: 22px; border: 4px dashed #555; margin-top: 20px; font-weight: bold; }
+        .btn-talk.gravando { background: #ff2e63; color: white; border: 4px solid #ff2e63; box-shadow: 0 0 30px rgba(255,46,99,0.8); animation: pulse 1.5s infinite; }
         
-        /* Estilo Passageiro - Botões Rápidos e Grandes */
+        /* Grid de Atalhos do Passageiro */
         .grid-atalhos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
         .btn-fast { background: #393e46; color: #eeeeee; border: 2px solid #555; padding: 20px 10px; font-size: 18px; font-weight: bold; border-radius: 12px; cursor: pointer; height: 90px; display: flex; align-items: center; justify-content: center; }
         .btn-fast:active { background: #ff2e63; border-color: #ff2e63; }
@@ -27,14 +27,20 @@
         #txtMensagem { width: 85%; padding: 15px; font-size: 18px; border-radius: 8px; border: none; margin-top: 20px; background: #393e46; color: white; }
         #btnEnviar { background: #00adb5; color: white; border: none; padding: 15px; font-size: 18px; border-radius: 8px; font-weight: bold; width: 85%; margin-top: 10px; }
         
-        #status { margin-top: 15px; color: #aa5; font-style: italic; font-weight: bold; font-size: 16px; }
+        #status { margin-top: 15px; color: #aa5; font-style: italic; font-weight: bold; font-size: 18px; }
         #chat { margin-top: 10px; font-size: 28px; font-weight: bold; color: #00adb5; padding: 15px; background: #393e46; border-radius: 12px; min-height: 60px; border-left: 6px solid #00adb5; text-align: left; }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255,46,99,0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(255,46,99,0); }
+            100% { box-shadow: 0 0 0 0 rgba(255,46,99,0); }
+        }
     </style>
 </head>
 <body>
 
     <h1>🎙️ Intercom Moto</h1>
-    <div id="status">Selecione a sua função:</div>
+    <div id="status">Escolhe a tua função:</div>
 
     <div id="selecao">
         <button class="btn btn-moto" onclick="conectar('motorista')">🏍️ Sou o Motorista</button>
@@ -42,24 +48,25 @@
     </div>
 
     <div id="painel-motorista" class="painel">
-        <p style="font-size: 18px;">Segure o botão para falar:</p>
-        <button id="talkBtn" class="btn btn-talk">FALAR</button>
-        <p style="color: #888; margin-top: 20px; font-size: 16px;">O que o passageiro mandar vai tocar direto no seu fone.</p>
+        <p style="font-size: 18px;">Mãos no guiador! Diga bem alto:</p>
+        <h2 style="color: #ff2e63; font-size: 32px; margin: 10px 0;">"AVISO"</h2>
+        <button id="talkBtn" class="btn btn-talk">MODO<br>SENTINELA</button>
+        <p style="color: #888; margin-top: 20px; font-size: 15px;">Diga "Aviso", espere o botão acender em vermelho e fale a sua mensagem.</p>
     </div>
 
     <div id="painel-passageiro" class="painel">
-        <div id="chat">Aguardando piloto...</div>
+        <div id="chat">Aguardando o piloto...</div>
         
         <div class="grid-atalhos">
-            <button class="btn-fast danger" onclick="enviarFrasePronta('Cuidado! Buraco ou perigo à frente!')">⚠️ CUIDADO!</button>
-            <button class="btn-fast" onclick="enviarFrasePronta('Devagar, vai mais devagar.')">🛑 VAI DEVAGAR</button>
-            <button class="btn-fast" onclick="enviarFrasePronta('Para a moto assim que puder.')">🏍️ PARA A MOTO</button>
-            <button class="btn-fast" onclick="enviarFrasePronta('Preciso ir ao banheiro.')">🚾 BANHEIRO</button>
-            <button class="btn-fast" onclick="enviarFrasePronta('Quero parar em um posto para esticar as pernas.')">⛽ POSTO / PARADA</button>
-            <button class="btn-fast" onclick="enviarFrasePronta('Tudo certo por aqui, pode marchar!')">👍 TUDO CERTO</button>
+            <button class="btn-fast danger" onclick="enviarFrasePronta('Cuidado! Perigo à frente!')">⚠️ CUIDADO!</button>
+            <button class="btn-fast" onclick="enviarFrasePronta('Devagar, abranda um pouco.')">🛑 VAI DEVAGAR</button>
+            <button class="btn-fast" onclick="enviarFrasePronta('Para a moto assim que puderes.')">🏍️ PARA A MOTO</button>
+            <button class="btn-fast" onclick="enviarFrasePronta('Preciso de ir à casa de banho.')">🚾 BANHO</button>
+            <button class="btn-fast" onclick="enviarFrasePronta('Quero parar numa área de serviço.')">⛽ PARAGEM / POSTO</button>
+            <button class="btn-fast" onclick="enviarFrasePronta('Tudo certo por aqui, podes acelerar!')">👍 TUDO CERTO</button>
         </div>
 
-        <input type="text" id="txtMensagem" placeholder="Ou digite algo personalizado...">
+        <input type="text" id="txtMensagem" placeholder="Ou digita outra mensagem...">
         <button id="btnEnviar" onclick="enviarTexto()">📩 Enviar Texto Livre</button>
     </div>
 
@@ -75,32 +82,71 @@
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition;
+        let tempoJanelaFala = null;
+        
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
             recognition.lang = 'pt-BR';
-            recognition.continuous = false;
+            recognition.continuous = true;
             recognition.interimResults = false;
 
             recognition.onresult = (event) => {
-                const textoFalado = event.results[0][0].transcript;
-                ws.send(JSON.stringify({ origem: papelUsuario, texto: textoFalado }));
+                const frase = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+                console.log("Ouvido: " + frase);
+                
+                // Se o piloto disser a palavra-chave
+                if (frase.includes("aviso")) {
+                    if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
+                    
+                    talkBtn.classList.add("gravando");
+                    talkBtn.innerHTML = "🎤 FALANDO...";
+                    statusDiv.innerText = "Transmissão ativa! Fale agora...";
+                    
+                    if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+
+                    // Abre o canal de voz por 6 segundos para capturar a mensagem
+                    tempoJanelaFala = setTimeout(() => {
+                        talkBtn.classList.remove("gravando");
+                        talkBtn.innerHTML = "MODO<br>SENTINELA";
+                        statusDiv.innerText = "Diga 'AVISO' para falar.";
+                    }, 6000);
+                    
+                } else if (talkBtn.classList.contains("gravando")) {
+                    // Envia o que foi falado após a activação
+                    ws.send(JSON.stringify({ origem: papelUsuario, texto: frase }));
+                }
+            };
+
+            recognition.onerror = () => {
+                // Tenta reiniciar caso haja falha temporária por ruído
+                setTimeout(() => { if(papelUsuario === 'motorista') recognition.start(); }, 1000);
+            };
+
+            recognition.onend = () => {
+                // Força o microfone a ficar sempre ligado escutando o piloto
+                if (papelUsuario === 'motorista') recognition.start();
             };
         }
 
         function conectar(papel) {
             papelUsuario = papel;
-            statusDiv.innerText = `Conectando...`;
+            statusDiv.innerText = `A ligar ao servidor...`;
             
             ws = new WebSocket(SERVER_URL);
 
             ws.onopen = () => {
-                statusDiv.innerText = `Conectado como ${papel.toUpperCase()}`;
+                statusDiv.innerText = `Ligado com sucesso!`;
                 statusDiv.style.color = "#00ff00";
                 selecaoDiv.style.display = "none";
                 
                 if (papel === 'motorista') {
                     document.getElementById("painel-motorista").style.display = "block";
-                    configurarBotaoMotorista();
+                    if (recognition) {
+                        recognition.start();
+                        statusDiv.innerText = "Pronto. Diga 'AVISO' para falar.";
+                    } else {
+                        alert("Este navegador não suporta activação por voz. Tente o Safari no iPhone.");
+                    }
                 } else {
                     document.getElementById("painel-passageiro").style.display = "block";
                 }
@@ -113,8 +159,7 @@
                 
                 if (papelUsuario === "passageiro" && dados.texto) {
                     chatDiv.innerText = dados.texto;
-                    // Faz o celular do passageiro vibrar ao receber mensagem do piloto
-                    if (navigator.vibrate) navigator.vibrate(200);
+                    if (navigator.vibrate) navigator.vibrate(300);
                 } 
                 
                 if (papelUsuario === "motorista" && dados.texto) {
@@ -123,30 +168,17 @@
             };
 
             ws.onclose = () => {
-                statusDiv.innerText = "Sem sinal. Reconectando...";
+                statusDiv.innerText = "Sinal perdido. A tentar ligar...";
                 statusDiv.style.color = "#ff0000";
                 setTimeout(() => conectar(papel), 2000);
             };
         }
 
-        function configurarBotaoMotorista() {
-            if (!recognition) return;
-            const ligarGravacao = (e) => {
-                e.preventDefault();
-                talkBtn.classList.add("gravando");
-                talkBtn.innerText = "FALANDO...";
-                recognition.start();
-            };
-            talkBtn.addEventListener("mousedown", ligarGravacao);
-            talkBtn.addEventListener("touchstart", ligarGravacao);
-        }
-
-        // Função para os botões rápidos
         function enviarFrasePronta(frase) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ origem: papelUsuario, texto: frase }));
-                statusDiv.innerText = "Alerta enviado para o piloto!";
-                setTimeout(() => { statusDiv.innerText = `Conectado como ${papelUsuario.toUpperCase()}`; }, 2000);
+                statusDiv.innerText = "Alerta enviado!";
+                setTimeout(() => { statusDiv.innerText = "Ligado como PASSAGEIRO"; }, 1500);
             }
         }
 
@@ -161,10 +193,10 @@
 
         function falarNoFone(texto) {
             if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Cancela falas antigas para priorizar o alerta novo
+                window.speechSynthesis.cancel();
                 const foneExpressao = new SpeechSynthesisUtterance(texto);
                 foneExpressao.lang = 'pt-BR';
-                foneExpressao.rate = 1.2; // Voz levemente rápida para cortar o som do vento
+                foneExpressao.rate = 1.25; // Velocidade ligeiramente rápida para ultrapassar o som do vento
                 window.speechSynthesis.speak(foneExpressao);
             }
         }
