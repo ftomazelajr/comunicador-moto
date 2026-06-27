@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/background-runner": "^3.0.0"
+  }
+}
