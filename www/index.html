@@ -120,9 +120,12 @@
             recognition.interimResults = false;
 
             recognition.onresult = (event) => {
-                const fraseCompleta = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+                // Pega o índice atual do resultado processado para evitar lixo acumulado
+                const indiceAtual = event.resultIndex;
+                const fraseCompleta = event.results[indiceAtual][0].transcript.toLowerCase().trim();
                 const palavras = fraseCompleta.split(' ');
                 
+                // CORREÇÃO MÃOS-LIVRES: Verifica o comando de ativação
                 if (palavras.includes("aviso")) {
                     if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
                     
@@ -142,23 +145,24 @@
                     }, 6000);
                     
                 } else if (talkBtn.classList.contains("gravando")) {
-                    ws.send(JSON.stringify({ origem: papelUsuario, texto: fraseCompleta }));
+                    // Transmite o trecho de voz atual diretamente via WebSocket enquanto estiver no tempo de janela ativo
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ origem: papelUsuario, texto: fraseCompleta }));
+                    }
                 }
             };
 
-            // AJUSTE SEGURO: Apenas registra o erro no log para não quebrar a linha de execução
             recognition.onerror = (event) => {
-                console.log("Reconhecimento erro de silêncio/timeout capturado com segurança:", event.error);
+                console.log("Silêncio ou timeout ignorado para manter estabilidade:", event.error);
             };
 
-            // AJUSTE SEGURO: Trata o reinício aqui de forma limpa para não encavalar processos
             recognition.onend = () => {
                 if (papelUsuario === 'motorista') {
                     setTimeout(() => {
                         try {
                             recognition.start();
                         } catch(e) {
-                            console.log("Tentativa de reinício contornada");
+                            console.log("Tentativa de reinício tratada");
                         }
                     }, 400);
                 }
