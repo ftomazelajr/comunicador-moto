@@ -10,16 +10,23 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
     - name: set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'zulu'
 
-    - name: Install Node and Packages
+    - name: Install Dependencies
       run: |
         npm install
         npm install @capacitor/core @capacitor/cli @capacitor/android
+        mkdir -p www
+        cp index.html www/ 2>/dev/null || cp www/index.html .github/ 2>/dev/null || true
 
     - name: Build Android Project From Scratch
       run: |
