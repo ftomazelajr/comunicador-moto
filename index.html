@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intercom Moto Mãos-Livres v3</title>
+    <title>Intercom Moto Mãos-Livres v4</title>
     <style>
         body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 15px; margin: 0; }
         h1 { color: #00adb5; font-size: 26px; margin-bottom: 5px; }
@@ -30,7 +30,6 @@
         #status { margin-top: 15px; color: #aa5; font-style: italic; font-weight: bold; font-size: 18px; }
         #chat { margin-top: 10px; font-size: 28px; font-weight: bold; color: #00adb5; padding: 15px; background: #393e46; border-radius: 12px; min-height: 60px; border-left: 6px solid #00adb5; text-align: left; transition: background 0.2s ease; }
         
-        /* Efeito de Flash na tela do Passageiro */
         .flash-alerta { background: #ff2e63 !important; color: white !important; }
 
         @keyframes pulse {
@@ -54,7 +53,7 @@
         <p style="font-size: 18px;">Mãos no guidão! Diga bem alto:</p>
         <h2 style="color: #ff2e63; font-size: 32px; margin: 10px 0;">"AVISO"</h2>
         <button id="talkBtn" class="btn btn-talk">MODO<br>SENTINELA</button>
-        <p style="color: #888; margin-top: 20px; font-size: 15px;">Você ouvirá um BIPE ao dizer 'Aviso' e outro BIPE quando a transmissão terminar.</p>
+        <p style="color: #888; margin-top: 20px; font-size: 15px;">O sistema fica em silêncio. Ele só dará um BIPE quando escutar a palavra exata "AVISO".</p>
     </div>
 
     <div id="painel-passageiro" class="painel">
@@ -87,7 +86,6 @@
         let recognition;
         let tempoJanelaFala = null;
         
-        // Função nativa para gerar os sons de Bip (sem precisar carregar arquivos)
         function tocarBip(tipo) {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -98,22 +96,20 @@
                 gainNode.connect(audioCtx.destination);
                 
                 if (tipo === "inicio") {
-                    // Bip agudo e curto (Início da gravação)
                     oscillator.type = "sine";
-                    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // Nota Lá (A5)
+                    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
                     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
                     oscillator.start();
                     oscillator.stop(audioCtx.currentTime + 0.15);
                 } else if (tipo === "fim") {
-                    // Bip ligeiramente mais grave e duplo (Fim da gravação)
                     oscillator.type = "sine";
-                    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // Nota Lá (A4)
+                    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); 
                     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
                     oscillator.start();
                     oscillator.stop(audioCtx.currentTime + 0.2);
                 }
             } catch (e) {
-                console.log("Erro ao reproduzir som de bip: ", e);
+                console.log("Erro de áudio: ", e);
             }
         }
 
@@ -124,14 +120,14 @@
             recognition.interimResults = false;
 
             recognition.onresult = (event) => {
-                const frase = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-                console.log("Ouvido: " + frase);
+                const fraseCompleta = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+                const palavras = fraseCompleta.split(' ');
                 
-                // Se o piloto disser a palavra-chave
-                if (frase.includes("aviso")) {
+                // CORREÇÃO: Só executa e faz barulho se a palavra exata "aviso" for dita
+                if (palavras.includes("aviso")) {
                     if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
                     
-                    tocarBip("inicio"); // <--- BIPE DE INÍCIO!
+                    tocarBip("inicio"); // O bipe de início SÓ toca aqui agora!
                     
                     talkBtn.classList.add("gravando");
                     talkBtn.innerHTML = "🎤 FALANDO...";
@@ -139,17 +135,17 @@
                     
                     if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
 
-                    // Abre o canal de voz por 6 segundos para capturar a mensagem
+                    // Janela aberta por 6 segundos para capturar sua fala
                     tempoJanelaFala = setTimeout(() => {
-                        tocarBip("fim"); // <--- BIPE DE FIM!
+                        tocarBip("fim"); 
                         talkBtn.classList.remove("gravando");
                         talkBtn.innerHTML = "MODO<br>SENTINELA";
                         statusDiv.innerText = "Diga 'AVISO' para falar.";
                     }, 6000);
                     
                 } else if (talkBtn.classList.contains("gravando")) {
-                    // Envia o que foi falado após a activação
-                    ws.send(JSON.stringify({ origem: papelUsuario, texto: frase }));
+                    // Se você já falou "AVISO" e o botão está vermelho, ele transmite o resto
+                    ws.send(JSON.stringify({ origem: papelUsuario, texto: fraseCompleta }));
                 }
             };
 
@@ -193,11 +189,8 @@
                 
                 if (papelUsuario === "passageiro" && dados.texto) {
                     chatDiv.innerText = dados.texto;
-                    
-                    // Faz a caixa de texto piscar em vermelho para chamar a atenção visual do passageiro
                     chatDiv.classList.add("flash-alerta");
                     setTimeout(() => { chatDiv.classList.remove("flash-alerta"); }, 600);
-                    
                     if (navigator.vibrate) navigator.vibrate(300);
                 } 
                 
