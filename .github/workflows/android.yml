@@ -19,7 +19,6 @@ jobs:
     - name: Install Dependencies
       run: |
         npm install
-        npm install @capacitor/core @capacitor/cli @capacitor/android
 
     - name: Create Structure and Config
       run: |
@@ -48,4 +47,3 @@ jobs:
       with:
         name: app-release
         path: android/app/build/outputs/apk/debug/app-debug.apk
-
