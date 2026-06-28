@@ -1,0 +1,65 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@v4
+      with:
+        java-version: '21'
+        distribution: 'zulu'
+
+    - name: Install Dependencies
+      run: npm install --legacy-peer-deps
+
+    - name: Create Structure and Config
+      run: |
+        mkdir -p www
+        cp index.html www/ 2>/dev/null || true
+        echo '{"appId": "com.intercom.moto", "appName": "IntercomMoto", "webDir": "www", "server": { "cleartext": true, "allowNavigation": ["comunicador-moto.onrender.com"] }, "plugins": { "SpeechRecognition": { "language": "pt-BR" } }}' > capacitor.config.json
+
+    - name: Build Android Project
+      run: |
+        npx cap add android || true
+        npx cap sync android
+
+    - name: Inject Permissions and WebChromeClient patch
+      run: |
+        sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />' android/app/src/main/AndroidManifest.xml
+        sed -i 's/android:usesCleartextTraffic="false"/android:usesCleartextTraffic="true"/g' android/app/src/main/AndroidManifest.xml
+
+        # Patch MainActivity para registrar o plugin de voz
+        cat > android/app/src/main/java/com/intercom/moto/MainActivity.java << 'JAVA'
+package com.intercom.moto;
+
+import android.os.Bundle;
+import com.getcapacitor.BridgeActivity;
+import com.capacitorjs.plugins.speechrecognition.SpeechRecognitionPlugin;
+
+public class MainActivity extends BridgeActivity {
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(SpeechRecognitionPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+}
+JAVA
+
+    - name: Build with Gradle
+      run: |
+        cd android
+        chmod +x gradlew
+        ./gradlew assembleDebug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-release
+        path: android/app/build/outputs/apk/debug/app-debug.apk
