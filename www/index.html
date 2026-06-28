@@ -3,33 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intercom Moto Mãos-Livres v5</title>
+    <title>Intercom Moto Mãos-Livres v6</title>
     <style>
         body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 15px; margin: 0; }
         h1 { color: #00adb5; font-size: 26px; margin-bottom: 5px; }
-        
         .btn { display: inline-block; width: 90%; max-width: 320px; padding: 18px; margin: 10px 0; font-size: 20px; font-weight: bold; border: none; border-radius: 12px; cursor: pointer; }
         .btn-moto { background: #393e46; color: #00adb5; border: 3px solid #00adb5; }
         .btn-pass { background: #393e46; color: #ff2e63; border: 2px solid #ff2e63; }
-        
         .painel { display: none; margin-top: 15px; padding: 15px; background: #222831; border-radius: 12px; }
-        
-        .btn-talk { background: #393e46; color: #888; width: 180px; height: 180px; border-radius: 50%; font-size: 22px; border: 4px dashed #555; margin-top: 20px; font-weight: bold; }
+        .btn-talk { background: #393e46; color: #888; width: 180px; height: 180px; border-radius: 50%; font-size: 22px; border: 4px dashed #555; margin-top: 20px; font-weight: bold; cursor: pointer; }
         .btn-talk.gravando { background: #ff2e63; color: white; border: 4px solid #ff2e63; box-shadow: 0 0 30px rgba(255,46,99,0.8); animation: pulse 1.5s infinite; }
-        
+        .btn-talk.sentinela { border-color: #00adb5; color: #00adb5; border-style: solid; }
         .grid-atalhos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
         .btn-fast { background: #393e46; color: #eeeeee; border: 2px solid #555; padding: 20px 10px; font-size: 18px; font-weight: bold; border-radius: 12px; cursor: pointer; height: 90px; display: flex; align-items: center; justify-content: center; }
         .btn-fast:active { background: #ff2e63; border-color: #ff2e63; }
         .danger { border-color: #ff2e63; color: #ff2e63; }
-        
         #txtMensagem { width: 85%; padding: 15px; font-size: 18px; border-radius: 8px; border: none; margin-top: 20px; background: #393e46; color: white; }
         #btnEnviar { background: #00adb5; color: white; border: none; padding: 15px; font-size: 18px; border-radius: 8px; font-weight: bold; width: 85%; margin-top: 10px; }
-        
         #status { margin-top: 15px; color: #aa5; font-style: italic; font-weight: bold; font-size: 18px; }
         #chat { margin-top: 10px; font-size: 28px; font-weight: bold; color: #00adb5; padding: 15px; background: #393e46; border-radius: 12px; min-height: 60px; border-left: 6px solid #00adb5; text-align: left; transition: background 0.2s ease; }
-        
         .flash-alerta { background: #ff2e63 !important; color: white !important; }
-
+        /* Log de debug — mostra o que o app está escutando em tempo real */
+        #debugLog { margin-top: 12px; padding: 10px; background: #1a1a2e; border-radius: 8px; font-size: 13px; color: #888; text-align: left; min-height: 36px; border: 1px solid #333; word-break: break-word; }
+        #debugLog span { color: #00adb5; }
         @keyframes pulse {
             0% { box-shadow: 0 0 0 0 rgba(255,46,99,0.7); }
             70% { box-shadow: 0 0 0 20px rgba(255,46,99,0); }
@@ -51,12 +47,13 @@
         <p style="font-size: 18px;">Mãos no guidão! Diga bem alto:</p>
         <h2 style="color: #ff2e63; font-size: 32px; margin: 10px 0;">"AVISO"</h2>
         <button id="talkBtn" class="btn btn-talk" onclick="alternarSentinelaManualmente()">LIGAR<br>SENTINELA</button>
-        <p style="color: #888; margin-top: 20px; font-size: 15px;">O sistema fica em silêncio. Ele só dará um BIPE quando escutar a palavra exata "AVISO".</p>
+        <p style="color: #888; margin-top: 20px; font-size: 15px;">O sistema fica em silêncio. Ele só dará um BIPE quando escutar a palavra "AVISO".</p>
+        <!-- Log em tempo real do que o app escuta -->
+        <div id="debugLog">🎤 Aguardando ativação...</div>
     </div>
 
     <div id="painel-passageiro" class="painel">
         <div id="chat">Aguardando o piloto...</div>
-        
         <div class="grid-atalhos">
             <button class="btn-fast danger" onclick="enviarFrasePronta('Cuidado! Perigo à frente!')">⚠️ CUIDADO!</button>
             <button class="btn-fast" onclick="enviarFrasePronta('Devagar, abranda um pouco.')">🛑 VAI DEVAGAR</button>
@@ -65,7 +62,6 @@
             <button class="btn-fast" onclick="enviarFrasePronta('Quero parar numa área de serviço.')">⛽ PARAGEM / POSTO</button>
             <button class="btn-fast" onclick="enviarFrasePronta('Tudo certo por aqui, podes acelerar!')">👍 TUDO CERTO</button>
         </div>
-
         <input type="text" id="txtMensagem" placeholder="Ou digite outra mensagem...">
         <button id="btnEnviar" onclick="enviarTexto()">📩 Enviar Texto Livre</button>
     </div>
@@ -73,185 +69,196 @@
     <script>
         let ws;
         let papelUsuario = "";
-        const SERVER_URL = "wss://comunicador-moto.onrender.com"; 
+        const SERVER_URL = "wss://comunicador-moto.onrender.com";
 
-        const statusDiv = document.getElementById("status");
-        const selecaoDiv = document.getElementById("selecao");
-        const talkBtn = document.getElementById("talkBtn");
-        const chatDiv = document.getElementById("chat");
+        const statusDiv   = document.getElementById("status");
+        const selecaoDiv  = document.getElementById("selecao");
+        const talkBtn     = document.getElementById("talkBtn");
+        const chatDiv     = document.getElementById("chat");
+        const debugLog    = document.getElementById("debugLog");
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition;
-        let tempoJanelaFala = null;
-        let audioCtxGlobal = null;
-        let sentinelaAtivo = false;
-        let janelaFalaAtiva = false; // controla se estamos no modo "falar após AVISO"
-        
-        // ── CORREÇÃO 1: normaliza texto removendo acentos para detectar "aviso" com confiança ──
-        function normalizarTexto(texto) {
-            return texto
-                .toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .trim();
+        let sentinelaAtivo   = false;
+        let janelaFalaAtiva  = false;
+        let tempoJanelaFala  = null;
+        let reiniciando      = false;   // trava para evitar duplo-restart
+        let audioCtxGlobal   = null;
+
+        // ── Normaliza texto: minúsculo + sem acentos ──────────────────────────
+        function norm(txt) {
+            return txt.toLowerCase()
+                      .normalize("NFD")
+                      .replace(/[\u0300-\u036f]/g, "")
+                      .trim();
         }
 
+        function logDebug(txt, destaque) {
+            if (!debugLog) return;
+            debugLog.innerHTML = destaque
+                ? `🎤 <span>${txt}</span>`
+                : `🎤 ${txt}`;
+        }
+
+        // ── Bipes de feedback ─────────────────────────────────────────────────
         function tocarBip(tipo) {
             try {
-                const audioCtx = audioCtxGlobal || new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const gainNode = audioCtx.createGain();
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
+                const ctx  = audioCtxGlobal || new (window.AudioContext || window.webkitAudioContext)();
+                const osc  = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = "sine";
                 if (tipo === "inicio") {
-                    oscillator.type = "sine";
-                    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
-                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                    oscillator.start();
-                    oscillator.stop(audioCtx.currentTime + 0.15);
-                } else if (tipo === "fim") {
-                    oscillator.type = "sine";
-                    oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); 
-                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                    oscillator.start();
-                    oscillator.stop(audioCtx.currentTime + 0.2);
+                    osc.frequency.setValueAtTime(880, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    osc.start(); osc.stop(ctx.currentTime + 0.15);
+                } else {
+                    osc.frequency.setValueAtTime(440, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    osc.start(); osc.stop(ctx.currentTime + 0.2);
                 }
-            } catch (e) {
-                console.log("Erro de áudio: ", e);
-            }
+            } catch(e) {}
         }
 
         function ativarAudioSegundoPlano() {
             try {
                 audioCtxGlobal = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtxGlobal.createOscillator();
-                const gainNode = audioCtxGlobal.createGain();
-                oscillator.type = "sine";
-                oscillator.frequency.setValueAtTime(1, audioCtxGlobal.currentTime);
-                gainNode.gain.setValueAtTime(0.001, audioCtxGlobal.currentTime); 
-                oscillator.connect(gainNode);
-                gainNode.connect(audioCtxGlobal.destination);
-                oscillator.start();
-            } catch(e) {
-                console.log("Erro áudio fundo:", e);
+                const osc  = audioCtxGlobal.createOscillator();
+                const gain = audioCtxGlobal.createGain();
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(1, audioCtxGlobal.currentTime);
+                gain.gain.setValueAtTime(0.001, audioCtxGlobal.currentTime);
+                osc.connect(gain);
+                gain.connect(audioCtxGlobal.destination);
+                osc.start();
+            } catch(e) {}
+        }
+
+        // ── Reinicia o recognition com proteção contra loop duplo ─────────────
+        function reiniciarRecognition() {
+            if (!sentinelaAtivo || reiniciando) return;
+            reiniciando = true;
+            setTimeout(() => {
+                reiniciando = false;
+                if (!sentinelaAtivo) return;
+                try { recognition.start(); } catch(e) {}
+            }, 300);
+        }
+
+        // ── Abre a janela de fala após detectar "AVISO" ───────────────────────
+        function abrirJanelaFala() {
+            if (janelaFalaAtiva) return;
+            janelaFalaAtiva = true;
+
+            tocarBip("inicio");
+            talkBtn.classList.add("gravando");
+            talkBtn.innerHTML = "🎤 FALANDO...";
+            statusDiv.innerText = "Transmissão ativa! Fale agora...";
+            logDebug("Janela aberta — aguardando mensagem...", true);
+            if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+
+            if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
+            tempoJanelaFala = setTimeout(fecharJanelaFala, 6000);
+        }
+
+        function fecharJanelaFala() {
+            janelaFalaAtiva = false;
+            tocarBip("fim");
+            talkBtn.classList.remove("gravando");
+            talkBtn.classList.add("sentinela");
+            talkBtn.innerHTML = "MODO<br>SENTINELA";
+            statusDiv.innerText = "Diga 'AVISO' para falar.";
+            logDebug("Escutando... diga AVISO");
+        }
+
+        // ── Processa qualquer resultado (intermediário ou final) ──────────────
+        function processarFrase(frase, isFinal) {
+            const f = norm(frase);
+            if (!f) return;
+
+            logDebug(frase);   // mostra na tela o que foi escutado
+
+            if (!janelaFalaAtiva && f.includes("aviso")) {
+                abrirJanelaFala();
+                return;
+            }
+
+            // Janela aberta + resultado final + não é só "aviso" de novo = envia
+            if (janelaFalaAtiva && isFinal && !f.includes("aviso")) {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ origem: papelUsuario, texto: frase }));
+                }
+                fecharJanelaFala();
             }
         }
 
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
-            recognition.lang = 'pt-BR';
-
-            // ── CORREÇÃO 2: continuous=true evita o loop de restart quebrado no WebView Android ──
-            recognition.continuous = true;
-
-            // ── CORREÇÃO 3: interimResults=false — só resultados finais, muito mais confiável no APK ──
-            recognition.interimResults = false;
+            recognition.lang            = 'pt-BR';
+            recognition.continuous      = false;   // false + restart manual = mais confiável no APK
+            recognition.interimResults  = true;    // interim captura antes do silence-timeout do Android
 
             recognition.onresult = (event) => {
-                // ── CORREÇÃO 4: percorre todos os resultados novos (não só o último índice) ──
                 for (let i = event.resultIndex; i < event.results.length; i++) {
-                    if (!event.results[i].isFinal) continue;
-
-                    const frase = normalizarTexto(event.results[i][0].transcript);
-                    console.log("Reconhecido:", frase);
-
-                    // Detectou "AVISO" → abre janela de fala
-                    if (!janelaFalaAtiva && frase.includes("aviso")) {
-                        janelaFalaAtiva = true;
-
-                        if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
-                        tocarBip("inicio");
-
-                        talkBtn.classList.add("gravando");
-                        talkBtn.innerHTML = "🎤 FALANDO...";
-                        statusDiv.innerText = "Transmissão ativa! Fale agora...";
-                        if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
-
-                        // Janela de 6 segundos para capturar a mensagem após "AVISO"
-                        tempoJanelaFala = setTimeout(() => {
-                            janelaFalaAtiva = false;
-                            tocarBip("fim");
-                            talkBtn.classList.remove("gravando");
-                            talkBtn.innerHTML = "MODO<br>SENTINELA";
-                            statusDiv.innerText = "Diga 'AVISO' para falar.";
-                        }, 6000);
-
-                    // Janela aberta → captura a mensagem que veio depois do "AVISO"
-                    } else if (janelaFalaAtiva && !frase.includes("aviso")) {
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({ origem: papelUsuario, texto: frase }));
-                        }
-                    }
+                    const texto   = event.results[i][0].transcript;
+                    const isFinal = event.results[i].isFinal;
+                    processarFrase(texto, isFinal);
                 }
             };
 
             recognition.onerror = (event) => {
-                console.log("Erro de reconhecimento:", event.error);
-
-                // ── CORREÇÃO 5: em caso de erro "no-speech" ou "network", reinicia suavemente ──
-                if (sentinelaAtivo && (event.error === 'no-speech' || event.error === 'network')) {
-                    setTimeout(() => {
-                        if (sentinelaAtivo) {
-                            try { recognition.start(); } catch(e) {}
-                        }
-                    }, 500);
+                console.log("SR erro:", event.error);
+                logDebug("Erro: " + event.error + " — reiniciando...");
+                // Ignora "aborted" (causado pelo próprio stop()) e reinicia nos demais
+                if (event.error !== 'aborted') {
+                    reiniciarRecognition();
                 }
             };
 
-            // ── CORREÇÃO 6: onend só reinicia se o sentinela ainda estiver ativo ──
-            // Com continuous=true isso raramente dispara, mas garante robustez
             recognition.onend = () => {
-                if (sentinelaAtivo) {
-                    setTimeout(() => {
-                        try { recognition.start(); } catch(e) {}
-                    }, 300);
-                }
+                logDebug("Ciclo encerrado — reiniciando...");
+                reiniciarRecognition();
             };
         }
 
+        // ── Ativa o sentinela (chamado pelo botão) ────────────────────────────
         async function alternarSentinelaManualmente() {
-            if (!recognition) return;
-            
-            ativarAudioSegundoPlano();
-            
-            if (!sentinelaAtivo) {
-                sentinelaAtivo = true;
-                statusDiv.innerText = "Solicitando microfone...";
+            if (!recognition || sentinelaAtivo) return;
 
-                try {
-                    await navigator.mediaDevices.getUserMedia({ audio: true });
-                    recognition.start();
-                    talkBtn.innerHTML = "MODO<br>SENTINELA";
-                    talkBtn.style.borderColor = "#00adb5";
-                    talkBtn.style.color = "#00adb5";
-                    statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
-                } catch(e) {
-                    console.error("Microfone bloqueado:", e);
-                    statusDiv.innerText = "Erro: Permita o microfone nas configurações.";
-                    alert("Você precisa conceder permissão de microfone para o aplicativo.");
-                    sentinelaAtivo = false;
-                }
+            ativarAudioSegundoPlano();
+            statusDiv.innerText = "Solicitando microfone...";
+
+            try {
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                sentinelaAtivo = true;
+                recognition.start();
+                talkBtn.classList.add("sentinela");
+                talkBtn.innerHTML = "MODO<br>SENTINELA";
+                statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
+                logDebug("Escutando... diga AVISO");
+            } catch(e) {
+                statusDiv.innerText = "Erro: Permita o microfone nas configurações.";
+                alert("Você precisa conceder permissão de microfone para o aplicativo.");
             }
         }
 
+        // ── WebSocket ─────────────────────────────────────────────────────────
         function conectar(papel) {
             papelUsuario = papel;
-            statusDiv.innerText = `A ligar ao servidor...`;
-            
+            statusDiv.innerText = "A ligar ao servidor...";
             ws = new WebSocket(SERVER_URL);
 
             ws.onopen = () => {
-                statusDiv.innerText = `Ligado com sucesso!`;
                 statusDiv.style.color = "#00ff00";
                 selecaoDiv.style.display = "none";
-                
                 if (papel === 'motorista') {
                     document.getElementById("painel-motorista").style.display = "block";
                     statusDiv.innerText = "Clique abaixo para ligar o microfone.";
                 } else {
                     document.getElementById("painel-passageiro").style.display = "block";
+                    statusDiv.innerText = "Ligado como PASSAGEIRO";
                 }
-                
                 ws.send(JSON.stringify({ origem: papel, tipo: "registro" }));
             };
 
@@ -260,9 +267,9 @@
                 if (papelUsuario === "passageiro" && dados.texto) {
                     chatDiv.innerText = dados.texto;
                     chatDiv.classList.add("flash-alerta");
-                    setTimeout(() => { chatDiv.classList.remove("flash-alerta"); }, 600);
+                    setTimeout(() => chatDiv.classList.remove("flash-alerta"), 600);
                     if (navigator.vibrate) navigator.vibrate(300);
-                } 
+                }
                 if (papelUsuario === "motorista" && dados.texto) {
                     falarNoFone(dados.texto);
                 }
@@ -295,10 +302,10 @@
         function falarNoFone(texto) {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
-                const foneExpressao = new SpeechSynthesisUtterance(texto);
-                foneExpressao.lang = 'pt-BR';
-                foneExpressao.rate = 1.25; 
-                window.speechSynthesis.speak(foneExpressao);
+                const u = new SpeechSynthesisUtterance(texto);
+                u.lang = 'pt-BR';
+                u.rate = 1.25;
+                window.speechSynthesis.speak(u);
             }
         }
     </script>
