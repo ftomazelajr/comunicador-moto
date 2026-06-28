@@ -134,8 +134,9 @@
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
             recognition.lang = 'pt-BR';
-            recognition.continuous = true;
+            recognition.continuous = false; // Ajustado para resposta instantânea no Android
             recognition.interimResults = false;
+
 
             recognition.onresult = (event) => {
                 const indiceAtual = event.resultIndex;
