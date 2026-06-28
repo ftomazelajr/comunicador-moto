@@ -14,11 +14,11 @@
         
         .painel { display: none; margin-top: 15px; padding: 15px; background: #222831; border-radius: 12px; }
         
-        /* Estilo Piloto Activação por Voz */
+        /* Estilo Piloto Ativação por Voz */
         .btn-talk { background: #393e46; color: #888; width: 180px; height: 180px; border-radius: 50%; font-size: 22px; border: 4px dashed #555; margin-top: 20px; font-weight: bold; }
         .btn-talk.gravando { background: #ff2e63; color: white; border: 4px solid #ff2e63; box-shadow: 0 0 30px rgba(255,46,99,0.8); animation: pulse 1.5s infinite; }
         
-        /* Grid de Atalhos do Passageiro */
+        /* Grid de Shortcuts do Passageiro */
         .grid-atalhos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
         .btn-fast { background: #393e46; color: #eeeeee; border: 2px solid #555; padding: 20px 10px; font-size: 18px; font-weight: bold; border-radius: 12px; cursor: pointer; height: 90px; display: flex; align-items: center; justify-content: center; }
         .btn-fast:active { background: #ff2e63; border-color: #ff2e63; }
@@ -190,9 +190,8 @@
                 statusDiv.innerText = "Solicitando microfone ao Android...";
 
                 try {
-                    // Força a janelinha de permissão de hardware a saltar no visor do celular
-                    const fluxoNativo = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    console.log("Permissão nativa concedida!");
+                    // Abre o fluxo seguro HTTPS para destravar a gravação do aparelho
+                    await navigator.mediaDevices.getUserMedia({ audio: true });
                     
                     recognition.start();
                     talkBtn.innerHTML = "MODO<br>SENTINELA";
