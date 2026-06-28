@@ -19,7 +19,7 @@
         .btn-fast:active { background: #ff2e63; border-color: #ff2e63; }
         .danger { border-color: #ff2e63; color: #ff2e63; }
         #txtMensagem { width: 85%; padding: 15px; font-size: 18px; border-radius: 8px; border: none; margin-top: 20px; background: #393e46; color: white; }
-        #btnEnviar { background: #00adb5; color: white; border: none; padding: 15px; font-size: 18px; border-radius: 8px; font-weight: bold; width: 85%; margin-top: 10px; }
+        #btnEnviar { background: #00adb5; color: white; border: none; padding: 15px; font-size: 18px; border-radius: 8px; font-weight: bold; width: 85%; margin-top: 10px; cursor: pointer; }
         #status { margin-top: 15px; color: #aa5; font-style: italic; font-weight: bold; font-size: 18px; }
         #chat { margin-top: 10px; font-size: 28px; font-weight: bold; color: #00adb5; padding: 15px; background: #393e46; border-radius: 12px; min-height: 60px; border-left: 6px solid #00adb5; text-align: left; }
         .flash-alerta { background: #ff2e63 !important; color: white !important; }
@@ -67,40 +67,51 @@
     <button id="btnEnviar" onclick="enviarTexto()">📩 Enviar Texto Livre</button>
 </div>
 
-<script type="module">
-    import { SpeechRecognition } from 'https://unpkg.com/@capacitor-community/speech-recognition@7.0.1/dist/esm/index.js';
-
-    const SERVER_URL   = "wss://comunicador-moto.onrender.com";
-    const GITHUB_URL   = "https://ftomazelajr.github.io/comunicador-moto/";
+<script>
+    const SERVER_URL = "wss://comunicador-moto.onrender.com";
+    const GITHUB_URL = "https://ftomazelajr.github.io/comunicador-moto/";
 
     let ws, papelUsuario;
     let sentinelaAtivo  = false;
     let janelaFalaAtiva = false;
     let tempoJanela     = null;
     let audioCtx        = null;
+    let SR              = null; // plugin nativo, resolvido após deviceready
 
     const statusDiv = document.getElementById("status");
     const talkBtn   = document.getElementById("talkBtn");
     const chatDiv   = document.getElementById("chat");
     const debugLog  = document.getElementById("debugLog");
 
-    // ── Atualização OTA ───────────────────────────────────────────────────
-    window.verificarAtualizacao = async () => {
+    // ── Aguarda Capacitor estar pronto e pega o plugin ────────────────────
+    document.addEventListener("deviceready", () => {
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SpeechRecognition) {
+            SR = window.Capacitor.Plugins.SpeechRecognition;
+            log("Plugin nativo pronto ✅");
+        } else {
+            log("Plugin não encontrado — usando WebSpeech");
+        }
+    }, false);
+
+    // Fallback: se não for Capacitor (browser normal), usa WebSpeech
+    function getSR() {
+        return SR || null;
+    }
+
+    // ── OTA ───────────────────────────────────────────────────────────────
+    function verificarAtualizacao() {
         const btn = document.getElementById("btnAtualizar");
         btn.textContent = "⏳";
         btn.disabled = true;
-        try {
-            const res = await fetch(GITHUB_URL + "?t=" + Date.now(), { cache: "no-store" });
-            if (!res.ok) throw new Error();
-            document.open();
-            document.write(await res.text());
-            document.close();
-        } catch {
-            btn.textContent = "❌ Falhou";
-            btn.disabled = false;
-            setTimeout(() => { btn.textContent = "🔄 Atualizar"; }, 3000);
-        }
-    };
+        fetch(GITHUB_URL + "?t=" + Date.now(), { cache: "no-store" })
+            .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+            .then(html => { document.open(); document.write(html); document.close(); })
+            .catch(() => {
+                btn.textContent = "❌ Falhou";
+                btn.disabled = false;
+                setTimeout(() => { btn.textContent = "🔄 Atualizar"; }, 3000);
+            });
+    }
 
     // ── Áudio ─────────────────────────────────────────────────────────────
     function bip(freq, dur) {
@@ -116,7 +127,6 @@
         } catch(e) {}
     }
 
-    // ── Normaliza texto ───────────────────────────────────────────────────
     function norm(t) {
         return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
     }
@@ -148,8 +158,8 @@
         log("Escutando... diga AVISO");
     }
 
-    // ── Processa cada frase reconhecida ───────────────────────────────────
     function processar(frase) {
+        if (!frase) return;
         const f = norm(frase);
         log(frase);
         if (!janelaFalaAtiva && f.includes("aviso")) {
@@ -163,62 +173,83 @@
         }
     }
 
-    // ── Sentinela com plugin nativo ───────────────────────────────────────
-    window.iniciarSentinela = async () => {
+    // ── Sentinela ─────────────────────────────────────────────────────────
+    async function iniciarSentinela() {
         if (sentinelaAtivo) return;
-
-        // Inicializa AudioContext com gesto do usuário
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        try {
-            const { available } = await SpeechRecognition.available();
-            if (!available) {
-                alert("Reconhecimento de voz não disponível neste dispositivo.");
-                return;
+        const plugin = getSR();
+
+        if (plugin) {
+            // ── Modo plugin nativo Capacitor ──
+            try {
+                const { available } = await plugin.available();
+                if (!available) { alert("Reconhecimento de voz indisponível."); return; }
+
+                await plugin.requestPermissions();
+
+                plugin.addListener('partialResults', (data) => {
+                    if (data.matches && data.matches[0]) processar(data.matches[0]);
+                });
+
+                sentinelaAtivo = true;
+                talkBtn.classList.add("sentinela");
+                talkBtn.innerHTML = "MODO<br>SENTINELA";
+                statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
+                log("Escutando... diga AVISO");
+                loopNativo();
+
+            } catch(e) {
+                statusDiv.innerText = "Erro plugin: " + e.message;
             }
 
-            await SpeechRecognition.requestPermissions();
+        } else {
+            // ── Fallback WebSpeech (browser/debug) ──
+            const WebSR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!WebSR) { alert("Sem suporte a voz neste dispositivo."); return; }
 
-            sentinelaAtivo = true;
-            talkBtn.classList.add("sentinela");
-            talkBtn.innerHTML = "MODO<br>SENTINELA";
-            statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
-            log("Escutando... diga AVISO");
+            const rec = new WebSR();
+            rec.lang = 'pt-BR';
+            rec.continuous = false;
+            rec.interimResults = true;
 
-            // Escuta contínua via plugin nativo
-            await SpeechRecognition.addListener('partialResults', (data) => {
-                if (data.matches && data.matches.length > 0) {
-                    processar(data.matches[0]);
+            rec.onresult = (e) => {
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    processar(e.results[i][0].transcript);
                 }
-            });
+            };
+            rec.onerror = (e) => { if (e.error !== 'aborted') setTimeout(() => rec.start(), 300); };
+            rec.onend   = ()  => { if (sentinelaAtivo) setTimeout(() => rec.start(), 300); };
 
-            loopSentinela();
-
-        } catch(e) {
-            statusDiv.innerText = "Erro: " + e.message;
-            console.error(e);
+            try {
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                rec.start();
+                sentinelaAtivo = true;
+                talkBtn.classList.add("sentinela");
+                talkBtn.innerHTML = "MODO<br>SENTINELA";
+                statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
+                log("Escutando... diga AVISO");
+            } catch(e) {
+                alert("Permita o microfone.");
+            }
         }
-    };
+    }
 
-    async function loopSentinela() {
+    async function loopNativo() {
         if (!sentinelaAtivo) return;
         try {
-            await SpeechRecognition.start({
+            await SR.start({
                 language: "pt-BR",
                 maxResults: 1,
-                prompt: "",
                 partialResults: true,
                 popup: false
             });
-        } catch(e) {
-            console.log("SR loop erro:", e);
-        }
-        // Reinicia automaticamente após cada ciclo
-        setTimeout(() => { if (sentinelaAtivo) loopSentinela(); }, 300);
+        } catch(e) { console.log("loop:", e); }
+        setTimeout(() => { if (sentinelaAtivo) loopNativo(); }, 300);
     }
 
     // ── WebSocket ─────────────────────────────────────────────────────────
-    window.conectar = (papel) => {
+    function conectar(papel) {
         papelUsuario = papel;
         statusDiv.innerText = "A ligar ao servidor...";
         ws = new WebSocket(SERVER_URL);
@@ -250,26 +281,26 @@
         ws.onclose = () => {
             statusDiv.innerText = "Sinal perdido. Reconectando...";
             statusDiv.style.color = "#ff0000";
-            setTimeout(() => window.conectar(papel), 2000);
+            setTimeout(() => conectar(papel), 2000);
         };
-    };
+    }
 
-    window.enviarFrasePronta = (frase) => {
+    function enviarFrasePronta(frase) {
         if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ origem: papelUsuario, texto: frase }));
             statusDiv.innerText = "Alerta enviado!";
             setTimeout(() => { statusDiv.innerText = "Ligado como PASSAGEIRO"; }, 1500);
         }
-    };
+    }
 
-    window.enviarTexto = () => {
+    function enviarTexto() {
         const campo = document.getElementById("txtMensagem");
         const texto = campo.value.trim();
         if (texto && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ origem: papelUsuario, texto: texto }));
             campo.value = "";
         }
-    };
+    }
 
     function falarNoFone(texto) {
         if ('speechSynthesis' in window) {
