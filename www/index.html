@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intercom Moto Mãos-Livres v6</title>
+    <title>Intercom Moto Mãos-Livres v7</title>
     <style>
         body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 15px; margin: 0; }
         h1 { color: #00adb5; font-size: 26px; margin-bottom: 5px; }
@@ -23,17 +23,45 @@
         #status { margin-top: 15px; color: #aa5; font-style: italic; font-weight: bold; font-size: 18px; }
         #chat { margin-top: 10px; font-size: 28px; font-weight: bold; color: #00adb5; padding: 15px; background: #393e46; border-radius: 12px; min-height: 60px; border-left: 6px solid #00adb5; text-align: left; transition: background 0.2s ease; }
         .flash-alerta { background: #ff2e63 !important; color: white !important; }
-        /* Log de debug — mostra o que o app está escutando em tempo real */
         #debugLog { margin-top: 12px; padding: 10px; background: #1a1a2e; border-radius: 8px; font-size: 13px; color: #888; text-align: left; min-height: 36px; border: 1px solid #333; word-break: break-word; }
         #debugLog span { color: #00adb5; }
+
+        /* ── Botão de atualização ── */
+        #btnAtualizar {
+            position: fixed;
+            bottom: 18px;
+            right: 18px;
+            background: #222831;
+            color: #00adb5;
+            border: 2px solid #00adb5;
+            border-radius: 50px;
+            padding: 10px 18px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 999;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        #btnAtualizar.atualizando {
+            color: #888;
+            border-color: #555;
+            animation: girando 1s linear infinite;
+        }
+        @keyframes girando {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+        }
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255,46,99,0.7); }
-            70% { box-shadow: 0 0 0 20px rgba(255,46,99,0); }
+            0%   { box-shadow: 0 0 0 0 rgba(255,46,99,0.7); }
+            70%  { box-shadow: 0 0 0 20px rgba(255,46,99,0); }
             100% { box-shadow: 0 0 0 0 rgba(255,46,99,0); }
         }
     </style>
 </head>
 <body>
+
+    <!-- Botão fixo de atualização (visível em toda tela) -->
+    <button id="btnAtualizar" onclick="verificarAtualizacao()">🔄 Atualizar</button>
 
     <h1>🎙️ Intercom Moto</h1>
     <div id="status">Escolha a sua função:</div>
@@ -48,7 +76,6 @@
         <h2 style="color: #ff2e63; font-size: 32px; margin: 10px 0;">"AVISO"</h2>
         <button id="talkBtn" class="btn btn-talk" onclick="alternarSentinelaManualmente()">LIGAR<br>SENTINELA</button>
         <p style="color: #888; margin-top: 20px; font-size: 15px;">O sistema fica em silêncio. Ele só dará um BIPE quando escutar a palavra "AVISO".</p>
-        <!-- Log em tempo real do que o app escuta -->
         <div id="debugLog">🎤 Aguardando ativação...</div>
     </div>
 
@@ -67,25 +94,61 @@
     </div>
 
     <script>
+        // ── URL do GitHub Pages — fonte da verdade ─────────────────────────────
+        const GITHUB_PAGES_URL = "https://ftomazelajr.github.io/comunicador-moto/";
+
+        // ── Atualização OTA ────────────────────────────────────────────────────
+        async function verificarAtualizacao() {
+            const btn = document.getElementById("btnAtualizar");
+            btn.textContent = "⏳";
+            btn.classList.add("atualizando");
+            btn.disabled = true;
+
+            try {
+                // Busca sem cache para garantir versão mais recente
+                const res = await fetch(GITHUB_PAGES_URL + "?nocache=" + Date.now(), {
+                    cache: "no-store"
+                });
+
+                if (!res.ok) throw new Error("HTTP " + res.status);
+
+                const novoHtml = await res.text();
+
+                // Substitui toda a página pelo HTML novo
+                document.open();
+                document.write(novoHtml);
+                document.close();
+
+            } catch (e) {
+                btn.textContent = "❌ Falhou";
+                btn.classList.remove("atualizando");
+                btn.disabled = false;
+                console.error("Erro ao atualizar:", e);
+                setTimeout(() => {
+                    btn.textContent = "🔄 Atualizar";
+                }, 3000);
+            }
+        }
+
+        // ── Resto do app ───────────────────────────────────────────────────────
         let ws;
         let papelUsuario = "";
         const SERVER_URL = "wss://comunicador-moto.onrender.com";
 
-        const statusDiv   = document.getElementById("status");
-        const selecaoDiv  = document.getElementById("selecao");
-        const talkBtn     = document.getElementById("talkBtn");
-        const chatDiv     = document.getElementById("chat");
-        const debugLog    = document.getElementById("debugLog");
+        const statusDiv  = document.getElementById("status");
+        const selecaoDiv = document.getElementById("selecao");
+        const talkBtn    = document.getElementById("talkBtn");
+        const chatDiv    = document.getElementById("chat");
+        const debugLog   = document.getElementById("debugLog");
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition;
-        let sentinelaAtivo   = false;
-        let janelaFalaAtiva  = false;
-        let tempoJanelaFala  = null;
-        let reiniciando      = false;   // trava para evitar duplo-restart
-        let audioCtxGlobal   = null;
+        let sentinelaAtivo  = false;
+        let janelaFalaAtiva = false;
+        let tempoJanelaFala = null;
+        let reiniciando     = false;
+        let audioCtxGlobal  = null;
 
-        // ── Normaliza texto: minúsculo + sem acentos ──────────────────────────
         function norm(txt) {
             return txt.toLowerCase()
                       .normalize("NFD")
@@ -95,12 +158,9 @@
 
         function logDebug(txt, destaque) {
             if (!debugLog) return;
-            debugLog.innerHTML = destaque
-                ? `🎤 <span>${txt}</span>`
-                : `🎤 ${txt}`;
+            debugLog.innerHTML = destaque ? `🎤 <span>${txt}</span>` : `🎤 ${txt}`;
         }
 
-        // ── Bipes de feedback ─────────────────────────────────────────────────
         function tocarBip(tipo) {
             try {
                 const ctx  = audioCtxGlobal || new (window.AudioContext || window.webkitAudioContext)();
@@ -135,7 +195,6 @@
             } catch(e) {}
         }
 
-        // ── Reinicia o recognition com proteção contra loop duplo ─────────────
         function reiniciarRecognition() {
             if (!sentinelaAtivo || reiniciando) return;
             reiniciando = true;
@@ -146,18 +205,15 @@
             }, 300);
         }
 
-        // ── Abre a janela de fala após detectar "AVISO" ───────────────────────
         function abrirJanelaFala() {
             if (janelaFalaAtiva) return;
             janelaFalaAtiva = true;
-
             tocarBip("inicio");
             talkBtn.classList.add("gravando");
             talkBtn.innerHTML = "🎤 FALANDO...";
             statusDiv.innerText = "Transmissão ativa! Fale agora...";
             logDebug("Janela aberta — aguardando mensagem...", true);
             if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
-
             if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
             tempoJanelaFala = setTimeout(fecharJanelaFala, 6000);
         }
@@ -172,19 +228,16 @@
             logDebug("Escutando... diga AVISO");
         }
 
-        // ── Processa qualquer resultado (intermediário ou final) ──────────────
         function processarFrase(frase, isFinal) {
             const f = norm(frase);
             if (!f) return;
-
-            logDebug(frase);   // mostra na tela o que foi escutado
+            logDebug(frase);
 
             if (!janelaFalaAtiva && f.includes("aviso")) {
                 abrirJanelaFala();
                 return;
             }
 
-            // Janela aberta + resultado final + não é só "aviso" de novo = envia
             if (janelaFalaAtiva && isFinal && !f.includes("aviso")) {
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ origem: papelUsuario, texto: frase }));
@@ -195,25 +248,22 @@
 
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
-            recognition.lang            = 'pt-BR';
-            recognition.continuous      = false;   // false + restart manual = mais confiável no APK
-            recognition.interimResults  = true;    // interim captura antes do silence-timeout do Android
+            recognition.lang           = 'pt-BR';
+            recognition.continuous     = false;
+            recognition.interimResults = true;
 
             recognition.onresult = (event) => {
                 for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const texto   = event.results[i][0].transcript;
-                    const isFinal = event.results[i].isFinal;
-                    processarFrase(texto, isFinal);
+                    processarFrase(
+                        event.results[i][0].transcript,
+                        event.results[i].isFinal
+                    );
                 }
             };
 
             recognition.onerror = (event) => {
-                console.log("SR erro:", event.error);
                 logDebug("Erro: " + event.error + " — reiniciando...");
-                // Ignora "aborted" (causado pelo próprio stop()) e reinicia nos demais
-                if (event.error !== 'aborted') {
-                    reiniciarRecognition();
-                }
+                if (event.error !== 'aborted') reiniciarRecognition();
             };
 
             recognition.onend = () => {
@@ -222,13 +272,10 @@
             };
         }
 
-        // ── Ativa o sentinela (chamado pelo botão) ────────────────────────────
         async function alternarSentinelaManualmente() {
             if (!recognition || sentinelaAtivo) return;
-
             ativarAudioSegundoPlano();
             statusDiv.innerText = "Solicitando microfone...";
-
             try {
                 await navigator.mediaDevices.getUserMedia({ audio: true });
                 sentinelaAtivo = true;
@@ -243,7 +290,6 @@
             }
         }
 
-        // ── WebSocket ─────────────────────────────────────────────────────────
         function conectar(papel) {
             papelUsuario = papel;
             statusDiv.innerText = "A ligar ao servidor...";
