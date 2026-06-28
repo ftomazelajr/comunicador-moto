@@ -19,12 +19,12 @@ jobs:
     - name: Install Dependencies
       run: |
         npm install
+        npm install @capacitor/core @capacitor/cli @capacitor/android
 
     - name: Create Structure and Config
       run: |
         mkdir -p www
         cp index.html www/ 2>/dev/null || true
-        # AUTO-UPDATE ATIVADO: O app busca o layout HTTPS da nuvem e libera segurança do microfone
         echo '{"appId": "com.intercom.moto", "appName": "IntercomMoto", "webDir": "www", "server": { "url": "https://comunicador-moto.onrender.com", "cleartext": true }}' > capacitor.config.json
 
     - name: Build Android Project
@@ -34,7 +34,7 @@ jobs:
 
     - name: Inject Permissions
       run: |
-        sed -i '/<application/i \    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />' android/app/src/main/AndroidManifest.xml
+        sed -i '/<application/i \    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />' android/app/src/main/AndroidManifest.xml
 
     - name: Build with Gradle
       run: |
@@ -47,3 +47,4 @@ jobs:
       with:
         name: app-release
         path: android/app/build/outputs/apk/debug/app-debug.apk
+
