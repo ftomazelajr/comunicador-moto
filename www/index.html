@@ -134,16 +134,14 @@
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
             recognition.lang = 'pt-BR';
-            recognition.continuous = false; // Ajustado para resposta instantânea no Android
-            recognition.interimResults = false;
-
+            recognition.continuous = false; 
+            recognition.interimResults = true; 
 
             recognition.onresult = (event) => {
                 const indiceAtual = event.resultIndex;
                 const fraseCompleta = event.results[indiceAtual][0].transcript.toLowerCase().trim();
-                const palavras = fraseCompleta.split(' ');
                 
-                if (palavras.includes("aviso")) {
+                if (fraseCompleta.includes("aviso")) {
                     if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
                     
                     tocarBip("inicio");
@@ -159,24 +157,25 @@
                         talkBtn.classList.remove("gravando");
                         talkBtn.innerHTML = "MODO<br>SENTINELA";
                         statusDiv.innerText = "Diga 'AVISO' para falar.";
+                        try { recognition.stop(); } catch(e) {}
                     }, 6000);
                     
                 } else if (talkBtn.classList.contains("gravando")) {
-                    if (ws && ws.readyState === WebSocket.OPEN) {
+                    if (ws && ws.readyState === WebSocket.OPEN && event.results[indiceAtual].isFinal) {
                         ws.send(JSON.stringify({ origem: papelUsuario, texto: fraseCompleta }));
                     }
                 }
             };
 
             recognition.onerror = (event) => {
-                console.log("Timeout/Silêncio:", event.error);
+                console.log("Erro/Silêncio:", event.error);
             };
 
             recognition.onend = () => {
                 if (papelUsuario === 'motorista' && sentinelaAtivo) {
                     setTimeout(() => {
                         try { recognition.start(); } catch(e) {}
-                    }, 400);
+                    }, 250);
                 }
             };
         }
@@ -191,7 +190,6 @@
                 statusDiv.innerText = "Solicitando microfone ao Android...";
 
                 try {
-                    // Abre o fluxo seguro HTTPS para destravar a gravação do aparelho
                     await navigator.mediaDevices.getUserMedia({ audio: true });
                     
                     recognition.start();
