@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intercom Moto Mãos-Livres v4</title>
+    <title>Intercom Moto Mãos-Livres v5</title>
     <style>
         body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 15px; margin: 0; }
         h1 { color: #00adb5; font-size: 26px; margin-bottom: 5px; }
@@ -14,11 +14,9 @@
         
         .painel { display: none; margin-top: 15px; padding: 15px; background: #222831; border-radius: 12px; }
         
-        /* Estilo Piloto Ativação por Voz */
         .btn-talk { background: #393e46; color: #888; width: 180px; height: 180px; border-radius: 50%; font-size: 22px; border: 4px dashed #555; margin-top: 20px; font-weight: bold; }
         .btn-talk.gravando { background: #ff2e63; color: white; border: 4px solid #ff2e63; box-shadow: 0 0 30px rgba(255,46,99,0.8); animation: pulse 1.5s infinite; }
         
-        /* Grid de Shortcuts do Passageiro */
         .grid-atalhos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
         .btn-fast { background: #393e46; color: #eeeeee; border: 2px solid #555; padding: 20px 10px; font-size: 18px; font-weight: bold; border-radius: 12px; cursor: pointer; height: 90px; display: flex; align-items: center; justify-content: center; }
         .btn-fast:active { background: #ff2e63; border-color: #ff2e63; }
@@ -87,16 +85,24 @@
         let tempoJanelaFala = null;
         let audioCtxGlobal = null;
         let sentinelaAtivo = false;
+        let janelaFalaAtiva = false; // controla se estamos no modo "falar após AVISO"
         
+        // ── CORREÇÃO 1: normaliza texto removendo acentos para detectar "aviso" com confiança ──
+        function normalizarTexto(texto) {
+            return texto
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .trim();
+        }
+
         function tocarBip(tipo) {
             try {
                 const audioCtx = audioCtxGlobal || new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
-                
                 oscillator.connect(gainNode);
                 gainNode.connect(audioCtx.destination);
-                
                 if (tipo === "inicio") {
                     oscillator.type = "sine";
                     oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
@@ -134,48 +140,71 @@
         if (SpeechRecognition) {
             recognition = new SpeechRecognition();
             recognition.lang = 'pt-BR';
-            recognition.continuous = false; 
-            recognition.interimResults = true; 
+
+            // ── CORREÇÃO 2: continuous=true evita o loop de restart quebrado no WebView Android ──
+            recognition.continuous = true;
+
+            // ── CORREÇÃO 3: interimResults=false — só resultados finais, muito mais confiável no APK ──
+            recognition.interimResults = false;
 
             recognition.onresult = (event) => {
-                const indiceAtual = event.resultIndex;
-                const fraseCompleta = event.results[indiceAtual][0].transcript.toLowerCase().trim();
-                
-                if (fraseCompleta.includes("aviso")) {
-                    if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
-                    
-                    tocarBip("inicio");
-                    
-                    talkBtn.classList.add("gravando");
-                    talkBtn.innerHTML = "🎤 FALANDO...";
-                    statusDiv.innerText = "Transmissão activa! Fale agora...";
-                    
-                    if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+                // ── CORREÇÃO 4: percorre todos os resultados novos (não só o último índice) ──
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (!event.results[i].isFinal) continue;
 
-                    tempoJanelaFala = setTimeout(() => {
-                        tocarBip("fim"); 
-                        talkBtn.classList.remove("gravando");
-                        talkBtn.innerHTML = "MODO<br>SENTINELA";
-                        statusDiv.innerText = "Diga 'AVISO' para falar.";
-                        try { recognition.stop(); } catch(e) {}
-                    }, 6000);
-                    
-                } else if (talkBtn.classList.contains("gravando")) {
-                    if (ws && ws.readyState === WebSocket.OPEN && event.results[indiceAtual].isFinal) {
-                        ws.send(JSON.stringify({ origem: papelUsuario, texto: fraseCompleta }));
+                    const frase = normalizarTexto(event.results[i][0].transcript);
+                    console.log("Reconhecido:", frase);
+
+                    // Detectou "AVISO" → abre janela de fala
+                    if (!janelaFalaAtiva && frase.includes("aviso")) {
+                        janelaFalaAtiva = true;
+
+                        if (tempoJanelaFala) clearTimeout(tempoJanelaFala);
+                        tocarBip("inicio");
+
+                        talkBtn.classList.add("gravando");
+                        talkBtn.innerHTML = "🎤 FALANDO...";
+                        statusDiv.innerText = "Transmissão ativa! Fale agora...";
+                        if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+
+                        // Janela de 6 segundos para capturar a mensagem após "AVISO"
+                        tempoJanelaFala = setTimeout(() => {
+                            janelaFalaAtiva = false;
+                            tocarBip("fim");
+                            talkBtn.classList.remove("gravando");
+                            talkBtn.innerHTML = "MODO<br>SENTINELA";
+                            statusDiv.innerText = "Diga 'AVISO' para falar.";
+                        }, 6000);
+
+                    // Janela aberta → captura a mensagem que veio depois do "AVISO"
+                    } else if (janelaFalaAtiva && !frase.includes("aviso")) {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ origem: papelUsuario, texto: frase }));
+                        }
                     }
                 }
             };
 
             recognition.onerror = (event) => {
-                console.log("Erro/Silêncio:", event.error);
+                console.log("Erro de reconhecimento:", event.error);
+
+                // ── CORREÇÃO 5: em caso de erro "no-speech" ou "network", reinicia suavemente ──
+                if (sentinelaAtivo && (event.error === 'no-speech' || event.error === 'network')) {
+                    setTimeout(() => {
+                        if (sentinelaAtivo) {
+                            try { recognition.start(); } catch(e) {}
+                        }
+                    }, 500);
+                }
             };
 
+            // ── CORREÇÃO 6: onend só reinicia se o sentinela ainda estiver ativo ──
+            // Com continuous=true isso raramente dispara, mas garante robustez
             recognition.onend = () => {
-                if (papelUsuario === 'motorista' && sentinelaAtivo) {
+                if (sentinelaAtivo) {
                     setTimeout(() => {
                         try { recognition.start(); } catch(e) {}
-                    }, 250);
+                    }, 300);
                 }
             };
         }
@@ -187,18 +216,17 @@
             
             if (!sentinelaAtivo) {
                 sentinelaAtivo = true;
-                statusDiv.innerText = "Solicitando microfone ao Android...";
+                statusDiv.innerText = "Solicitando microfone...";
 
                 try {
                     await navigator.mediaDevices.getUserMedia({ audio: true });
-                    
                     recognition.start();
                     talkBtn.innerHTML = "MODO<br>SENTINELA";
                     talkBtn.style.borderColor = "#00adb5";
                     talkBtn.style.color = "#00adb5";
                     statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
                 } catch(e) {
-                    console.error("O Android bloqueou o microfone:", e);
+                    console.error("Microfone bloqueado:", e);
                     statusDiv.innerText = "Erro: Permita o microfone nas configurações.";
                     alert("Você precisa conceder permissão de microfone para o aplicativo.");
                     sentinelaAtivo = false;
