@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#00adb5">
+    <link rel="manifest" href="manifest.json">
     <title>Intercom Moto</title>
     <style>
         body { font-family: Arial, sans-serif; background: #121212; color: white; text-align: center; padding: 15px; margin: 0; }
@@ -70,12 +72,9 @@
     const SERVER_URL = "wss://comunicador-moto.onrender.com";
     const GITHUB_URL = "https://ftomazelajr.github.io/comunicador-moto/";
 
-    let ws, papelUsuario;
-    let sentinelaAtivo  = false;
-    let janelaFalaAtiva = false;
-    let tempoJanela     = null;
-    let audioCtx        = null;
-    let rec             = null;
+    let ws, papelUsuario, rec;
+    let sentinelaAtivo = false, janelaFalaAtiva = false;
+    let tempoJanela = null, audioCtx = null;
 
     const statusDiv = document.getElementById("status");
     const talkBtn   = document.getElementById("talkBtn");
@@ -169,11 +168,11 @@
         rec.onerror = (e) => {
             log("Erro: " + e.error);
             if (e.error !== 'aborted' && sentinelaAtivo)
-                setTimeout(() => { try { rec.start(); } catch(ex) {} }, 300);
+                setTimeout(() => { try { rec.start(); } catch(x) {} }, 300);
         };
         rec.onend = () => {
             if (sentinelaAtivo)
-                setTimeout(() => { try { rec.start(); } catch(ex) {} }, 300);
+                setTimeout(() => { try { rec.start(); } catch(x) {} }, 300);
         };
 
         navigator.mediaDevices.getUserMedia({ audio: true })
