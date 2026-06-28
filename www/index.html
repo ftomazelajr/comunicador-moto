@@ -180,21 +180,30 @@
             };
         }
 
-        // Nova ação vinculada ao clique físico do piloto para destravar o microfone no APK
-        function alternarSentinelaManualmente() {
+        async function alternarSentinelaManualmente() {
             if (!recognition) return;
+            
             ativarAudioSegundoPlano();
             
             if (!sentinelaAtivo) {
                 sentinelaAtivo = true;
+                statusDiv.innerText = "Solicitando microfone ao Android...";
+
                 try {
+                    // Força a janelinha de permissão de hardware a saltar no visor do celular
+                    const fluxoNativo = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    console.log("Permissão nativa concedida!");
+                    
                     recognition.start();
                     talkBtn.innerHTML = "MODO<br>SENTINELA";
                     talkBtn.style.borderColor = "#00adb5";
                     talkBtn.style.color = "#00adb5";
                     statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
                 } catch(e) {
-                    console.log(e);
+                    console.error("O Android bloqueou o microfone:", e);
+                    statusDiv.innerText = "Erro: Permita o microfone nas configurações.";
+                    alert("Você precisa conceder permissão de microfone para o aplicativo.");
+                    sentinelaAtivo = false;
                 }
             }
         }
