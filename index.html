@@ -36,7 +36,6 @@
 <body>
 
 <button id="btnAtualizar" onclick="verificarAtualizacao()">🔄 Atualizar</button>
-
 <h1>🎙️ Intercom Moto</h1>
 <div id="status">Escolha a sua função:</div>
 
@@ -76,49 +75,29 @@
     let janelaFalaAtiva = false;
     let tempoJanela     = null;
     let audioCtx        = null;
-    let SR              = null; // plugin nativo, resolvido após deviceready
+    let rec             = null;
 
     const statusDiv = document.getElementById("status");
     const talkBtn   = document.getElementById("talkBtn");
     const chatDiv   = document.getElementById("chat");
     const debugLog  = document.getElementById("debugLog");
 
-    // ── Aguarda Capacitor estar pronto e pega o plugin ────────────────────
-    document.addEventListener("deviceready", () => {
-        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SpeechRecognition) {
-            SR = window.Capacitor.Plugins.SpeechRecognition;
-            log("Plugin nativo pronto ✅");
-        } else {
-            log("Plugin não encontrado — usando WebSpeech");
-        }
-    }, false);
-
-    // Fallback: se não for Capacitor (browser normal), usa WebSpeech
-    function getSR() {
-        return SR || null;
-    }
-
-    // ── OTA ───────────────────────────────────────────────────────────────
     function verificarAtualizacao() {
         const btn = document.getElementById("btnAtualizar");
-        btn.textContent = "⏳";
-        btn.disabled = true;
+        btn.textContent = "⏳"; btn.disabled = true;
         fetch(GITHUB_URL + "?t=" + Date.now(), { cache: "no-store" })
             .then(r => { if (!r.ok) throw new Error(); return r.text(); })
             .then(html => { document.open(); document.write(html); document.close(); })
             .catch(() => {
-                btn.textContent = "❌ Falhou";
-                btn.disabled = false;
+                btn.textContent = "❌ Falhou"; btn.disabled = false;
                 setTimeout(() => { btn.textContent = "🔄 Atualizar"; }, 3000);
             });
     }
 
-    // ── Áudio ─────────────────────────────────────────────────────────────
     function bip(freq, dur) {
         try {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const o = audioCtx.createOscillator();
-            const g = audioCtx.createGain();
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
             o.connect(g); g.connect(audioCtx.destination);
             o.type = "sine";
             o.frequency.setValueAtTime(freq, audioCtx.currentTime);
@@ -132,10 +111,9 @@
     }
 
     function log(txt, destaque) {
-        if (debugLog) debugLog.innerHTML = destaque ? `🎤 <span>${txt}</span>` : `🎤 ${txt}`;
+        debugLog.innerHTML = destaque ? `🎤 <span>${txt}</span>` : `🎤 ${txt}`;
     }
 
-    // ── Janela de fala ────────────────────────────────────────────────────
     function abrirJanela() {
         if (janelaFalaAtiva) return;
         janelaFalaAtiva = true;
@@ -165,95 +143,55 @@
         if (!janelaFalaAtiva && f.includes("aviso")) {
             abrirJanela();
         } else if (janelaFalaAtiva && !f.includes("aviso")) {
-            if (ws && ws.readyState === WebSocket.OPEN) {
+            if (ws && ws.readyState === WebSocket.OPEN)
                 ws.send(JSON.stringify({ origem: papelUsuario, texto: frase }));
-            }
             clearTimeout(tempoJanela);
             fecharJanela();
         }
     }
 
-    // ── Sentinela ─────────────────────────────────────────────────────────
-    async function iniciarSentinela() {
+    function iniciarSentinela() {
         if (sentinelaAtivo) return;
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        const plugin = getSR();
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { alert("Reconhecimento de voz não disponível."); return; }
 
-        if (plugin) {
-            // ── Modo plugin nativo Capacitor ──
-            try {
-                const { available } = await plugin.available();
-                if (!available) { alert("Reconhecimento de voz indisponível."); return; }
+        rec = new SR();
+        rec.lang = 'pt-BR';
+        rec.continuous = false;
+        rec.interimResults = true;
 
-                await plugin.requestPermissions();
+        rec.onresult = (e) => {
+            for (let i = e.resultIndex; i < e.results.length; i++)
+                processar(e.results[i][0].transcript);
+        };
+        rec.onerror = (e) => {
+            log("Erro: " + e.error);
+            if (e.error !== 'aborted' && sentinelaAtivo)
+                setTimeout(() => { try { rec.start(); } catch(ex) {} }, 300);
+        };
+        rec.onend = () => {
+            if (sentinelaAtivo)
+                setTimeout(() => { try { rec.start(); } catch(ex) {} }, 300);
+        };
 
-                plugin.addListener('partialResults', (data) => {
-                    if (data.matches && data.matches[0]) processar(data.matches[0]);
-                });
-
-                sentinelaAtivo = true;
-                talkBtn.classList.add("sentinela");
-                talkBtn.innerHTML = "MODO<br>SENTINELA";
-                statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
-                log("Escutando... diga AVISO");
-                loopNativo();
-
-            } catch(e) {
-                statusDiv.innerText = "Erro plugin: " + e.message;
-            }
-
-        } else {
-            // ── Fallback WebSpeech (browser/debug) ──
-            const WebSR = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!WebSR) { alert("Sem suporte a voz neste dispositivo."); return; }
-
-            const rec = new WebSR();
-            rec.lang = 'pt-BR';
-            rec.continuous = false;
-            rec.interimResults = true;
-
-            rec.onresult = (e) => {
-                for (let i = e.resultIndex; i < e.results.length; i++) {
-                    processar(e.results[i][0].transcript);
-                }
-            };
-            rec.onerror = (e) => { if (e.error !== 'aborted') setTimeout(() => rec.start(), 300); };
-            rec.onend   = ()  => { if (sentinelaAtivo) setTimeout(() => rec.start(), 300); };
-
-            try {
-                await navigator.mediaDevices.getUserMedia({ audio: true });
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(() => {
                 rec.start();
                 sentinelaAtivo = true;
                 talkBtn.classList.add("sentinela");
                 talkBtn.innerHTML = "MODO<br>SENTINELA";
                 statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
                 log("Escutando... diga AVISO");
-            } catch(e) {
-                alert("Permita o microfone.");
-            }
-        }
+            })
+            .catch(() => alert("Permita o microfone."));
     }
 
-    async function loopNativo() {
-        if (!sentinelaAtivo) return;
-        try {
-            await SR.start({
-                language: "pt-BR",
-                maxResults: 1,
-                partialResults: true,
-                popup: false
-            });
-        } catch(e) { console.log("loop:", e); }
-        setTimeout(() => { if (sentinelaAtivo) loopNativo(); }, 300);
-    }
-
-    // ── WebSocket ─────────────────────────────────────────────────────────
     function conectar(papel) {
         papelUsuario = papel;
         statusDiv.innerText = "A ligar ao servidor...";
         ws = new WebSocket(SERVER_URL);
-
         ws.onopen = () => {
             statusDiv.style.color = "#00ff00";
             document.getElementById("selecao").style.display = "none";
@@ -266,7 +204,6 @@
             }
             ws.send(JSON.stringify({ origem: papel, tipo: "registro" }));
         };
-
         ws.onmessage = (event) => {
             const dados = JSON.parse(event.data);
             if (papelUsuario === "passageiro" && dados.texto) {
@@ -277,7 +214,6 @@
             }
             if (papelUsuario === "motorista" && dados.texto) falarNoFone(dados.texto);
         };
-
         ws.onclose = () => {
             statusDiv.innerText = "Sinal perdido. Reconectando...";
             statusDiv.style.color = "#ff0000";
