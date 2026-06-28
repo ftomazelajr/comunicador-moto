@@ -19,22 +19,24 @@ jobs:
     - name: Install Dependencies
       run: |
         npm install
-        npm install @capacitor/core @capacitor/cli @capacitor/android
 
     - name: Create Structure and Config
       run: |
         mkdir -p www
         cp index.html www/ 2>/dev/null || true
-        echo '{"appId": "com.intercom.moto", "appName": "IntercomMoto", "webDir": "www", "server": { "url": "https://comunicador-moto.onrender.com", "cleartext": true }}' > capacitor.config.json
+        # Define o carregamento local estável com liberação para requisições externas
+        echo '{"appId": "com.intercom.moto", "appName": "IntercomMoto", "webDir": "www", "server": { "cleartext": true, "allowNavigation": ["comunicador-moto.onrender.com"] }}' > capacitor.config.json
 
     - name: Build Android Project
       run: |
         npx cap add android || true
         npx cap sync android
 
-    - name: Inject Permissions
+    - name: Inject Permissions and Network Security
       run: |
-        sed -i '/<application/i \    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />' android/app/src/main/AndroidManifest.xml
+        # Injeta as permissões nativas de áudio e internet que o Android exige para WebSockets estáveis
+        sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />' android/app/src/main/AndroidManifest.xml
+        sed -i 's/android:usesCleartextTraffic="false"/android:usesCleartextTraffic="true"/g' android/app/src/main/AndroidManifest.xml
 
     - name: Build with Gradle
       run: |
@@ -47,4 +49,3 @@ jobs:
       with:
         name: app-release
         path: android/app/build/outputs/apk/debug/app-debug.apk
-
