@@ -75,6 +75,7 @@
     let ws, papelUsuario, rec;
     let sentinelaAtivo = false, janelaFalaAtiva = false;
     let tempoJanela = null, audioCtx = null;
+    let tentativas = 0;
 
     const statusDiv = document.getElementById("status");
     const talkBtn   = document.getElementById("talkBtn");
@@ -138,7 +139,7 @@
     function processar(frase) {
         if (!frase) return;
         const f = norm(frase);
-        log(frase);
+        log(frase);  // mostra TUDO que escuta
         if (!janelaFalaAtiva && f.includes("aviso")) {
             abrirJanela();
         } else if (janelaFalaAtiva && !f.includes("aviso")) {
@@ -149,42 +150,77 @@
         }
     }
 
+    function criarRec() {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) return null;
+
+        const r = new SR();
+        // Chrome Android funciona melhor com continuous=true
+        r.lang = 'pt-BR';
+        r.continuous = true;
+        r.interimResults = true;
+        r.maxAlternatives = 1;
+
+        r.onstart = () => {
+            tentativas = 0;
+            log("🟢 Microfone ativo — fale AVISO");
+        };
+
+        r.onresult = (e) => {
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                processar(e.results[i][0].transcript);
+            }
+        };
+
+        r.onerror = (e) => {
+            log("⚠️ Erro: " + e.error);
+            console.log("SR erro:", e.error);
+            if (sentinelaAtivo && e.error !== 'aborted') {
+                tentativas++;
+                const delay = Math.min(300 * tentativas, 2000);
+                setTimeout(reiniciarRec, delay);
+            }
+        };
+
+        r.onend = () => {
+            log("🔄 Reiniciando escuta...");
+            if (sentinelaAtivo) setTimeout(reiniciarRec, 300);
+        };
+
+        return r;
+    }
+
+    function reiniciarRec() {
+        if (!sentinelaAtivo) return;
+        try {
+            if (rec) { try { rec.stop(); } catch(e) {} }
+            rec = criarRec();
+            rec.start();
+        } catch(e) {
+            console.log("Reinicio erro:", e);
+            setTimeout(reiniciarRec, 500);
+        }
+    }
+
     function iniciarSentinela() {
         if (sentinelaAtivo) return;
         if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) { alert("Reconhecimento de voz não disponível."); return; }
-
-        rec = new SR();
-        rec.lang = 'pt-BR';
-        rec.continuous = false;
-        rec.interimResults = true;
-
-        rec.onresult = (e) => {
-            for (let i = e.resultIndex; i < e.results.length; i++)
-                processar(e.results[i][0].transcript);
-        };
-        rec.onerror = (e) => {
-            log("Erro: " + e.error);
-            if (e.error !== 'aborted' && sentinelaAtivo)
-                setTimeout(() => { try { rec.start(); } catch(x) {} }, 300);
-        };
-        rec.onend = () => {
-            if (sentinelaAtivo)
-                setTimeout(() => { try { rec.start(); } catch(x) {} }, 300);
-        };
+        if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+            alert("Reconhecimento de voz não disponível neste browser.");
+            return;
+        }
 
         navigator.mediaDevices.getUserMedia({ audio: true })
             .then(() => {
-                rec.start();
                 sentinelaAtivo = true;
+                rec = criarRec();
+                rec.start();
                 talkBtn.classList.add("sentinela");
                 talkBtn.innerHTML = "MODO<br>SENTINELA";
                 statusDiv.innerText = "Sentinela ativado! Diga 'AVISO'.";
-                log("Escutando... diga AVISO");
             })
-            .catch(() => alert("Permita o microfone."));
+            .catch(() => alert("Permita o microfone nas configurações do Chrome."));
     }
 
     function conectar(papel) {
